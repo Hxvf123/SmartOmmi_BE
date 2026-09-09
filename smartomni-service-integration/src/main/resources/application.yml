@@ -1,0 +1,29 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: smartomni-service-integration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartomni
+    username: smartomni
+    password: smartomni
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: smartomni
+    password: smartomni
+
+smartomni:
+  encryption:
+    aes-key: "CHANGE_ME_BASE64_32_BYTE_KEY_______________"  # FR-038 - thay bang key that qua KMS/Vault khi len prod
+  price-sync:
+    fixed-delay-ms: 900000  # 15 phut - UC-43
+
+logging:
+  level:
+    com.smartomni: DEBUG

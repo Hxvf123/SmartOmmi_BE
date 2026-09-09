@@ -1,0 +1,41 @@
+package com.smartomni.catalog.entity;
+
+import com.smartomni.common.entity.BaseTenantEntity;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+/**
+ * UC-09: Cap nhat link san pham tren san TMDT (thu cong).
+ * UC-42/UC-43: cung la noi luu ket qua tu dong nhap san pham / dong bo gia.
+ */
+@Getter
+@Setter
+@Entity
+@Table(name = "product_marketplace_links", uniqueConstraints = @UniqueConstraint(columnNames = {"sku_id", "platform"}))
+public class ProductMarketplaceLink extends BaseTenantEntity {
+
+    @Column(name = "sku_id", nullable = false)
+    private Long skuId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Platform platform;
+
+    @Column(name = "platform_item_id")
+    private String platformItemId;
+
+    @Column(name = "platform_product_url")
+    private String platformProductUrl;
+
+    @Column(name = "platform_price")
+    private BigDecimal platformPrice; // FR-091: gia rieng theo tung kenh
+
+    @Column(name = "last_synced_at")
+    private Instant lastSyncedAt;
+
+    public enum Platform { SHOPEE, TIKTOK_SHOP, STOREFRONT }
+}

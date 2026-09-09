@@ -1,0 +1,22 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: smartomni-service-inventory
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartomni
+    username: smartomni
+    password: smartomni
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+logging:
+  level:
+    com.smartomni: DEBUG

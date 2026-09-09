@@ -1,0 +1,11 @@
+package com.smartomni.catalog.repository;
+
+import com.smartomni.catalog.entity.Product;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+    Page<Product> findByTenantId(Long tenantId, Pageable pageable);
+    long countByTenantId(Long tenantId);
+}

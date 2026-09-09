@@ -1,0 +1,26 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: smartomni-service-auth
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartomni
+    username: smartomni
+    password: smartomni
+  jpa:
+    hibernate:
+      ddl-auto: update   # DEV ONLY - production dung Flyway/Liquibase migration
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+smartomni:
+  jwt:
+    secret: "CHANGE_ME_super_secret_key_min_32_chars_______"
+    expiration-ms: 86400000  # 24h
+
+logging:
+  level:
+    com.smartomni: DEBUG

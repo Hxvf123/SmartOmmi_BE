@@ -1,0 +1,165 @@
+version: "3.8"
+
+# =====================================================================
+# SMARTOMNI - MONO-REPO: 1 file docker-compose chay TOAN BO he thong
+# (ha tang + 8 service Spring Boot) tu 1 repo duy nhat.
+#
+#   docker compose up -d --build      # build + chay tat ca
+#   docker compose up -d postgres redis rabbitmq   # chi chay ha tang (khi dev tung service bang IDE)
+#   docker compose logs -f order-service           # xem log 1 service
+#   docker compose down                            # tat tat ca
+# =====================================================================
+
+services:
+  # ---------------------- HA TANG DUNG CHUNG ----------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartomni-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: smartomni
+      POSTGRES_PASSWORD: smartomni
+      POSTGRES_DB: smartomni
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartomni"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: smartomni-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: smartomni-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: smartomni
+      RABBITMQ_DEFAULT_PASS: smartomni
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------- APPLICATION SERVICES ----------------------
+  gateway:
+    build:
+      context: .
+      dockerfile: smartomni-gateway/Dockerfile
+    container_name: smartomni-gateway
+    ports: ["8080:8080"]
+    depends_on: [auth-service, tenant-service]
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: smartomni-service-auth/Dockerfile
+    container_name: smartomni-auth-service
+    ports: ["8081:8081"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+
+  tenant-service:
+    build:
+      context: .
+      dockerfile: smartomni-service-tenant/Dockerfile
+    container_name: smartomni-tenant-service
+    ports: ["8082:8082"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      SPRING_DATA_REDIS_HOST: redis
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: smartomni-service-catalog/Dockerfile
+    container_name: smartomni-catalog-service
+    ports: ["8083:8083"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      SMARTOMNI_SERVICES_TENANT-URL: http://tenant-service:8082
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: smartomni-service-inventory/Dockerfile
+    container_name: smartomni-inventory-service
+    ports: ["8084:8084"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      SPRING_DATA_REDIS_HOST: redis
+
+  order-service:
+    build:
+      context: .
+      dockerfile: smartomni-service-order/Dockerfile
+    container_name: smartomni-order-service
+    ports: ["8085:8085"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SMARTOMNI_SERVICES_INVENTORY-URL: http://inventory-service:8084
+
+  integration-service:
+    build:
+      context: .
+      dockerfile: smartomni-service-integration/Dockerfile
+    container_name: smartomni-integration-service
+    ports: ["8086:8086"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      SPRING_RABBITMQ_HOST: rabbitmq
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: smartomni-service-ai/Dockerfile
+    container_name: smartomni-ai-service
+    ports: ["8087:8087"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      SPRING_DATA_REDIS_HOST: redis
+
+volumes:
+  pgdata:

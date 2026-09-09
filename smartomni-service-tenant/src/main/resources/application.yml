@@ -1,0 +1,24 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: smartomni-service-tenant
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartomni
+    username: smartomni
+    password: smartomni
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cache:
+    type: redis
+
+logging:
+  level:
+    com.smartomni: DEBUG

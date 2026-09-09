@@ -1,0 +1,22 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: smartomni-service-catalog
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartomni
+    username: smartomni
+    password: smartomni
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+smartomni:
+  services:
+    tenant-url: http://localhost:8082
+
+logging:
+  level:
+    com.smartomni: DEBUG

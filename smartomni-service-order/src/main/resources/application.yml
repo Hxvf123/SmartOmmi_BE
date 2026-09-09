@@ -1,0 +1,36 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: smartomni-service-order
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartomni
+    username: smartomni
+    password: smartomni
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: smartomni
+    password: smartomni
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 2000
+          max-attempts: 5
+          multiplier: 2.0   # FR-062/FR-064: exponential backoff khi retry message
+
+smartomni:
+  services:
+    inventory-url: http://localhost:8084
+  polling:
+    fixed-delay-ms: 180000  # 3 phut - UC-34
+
+logging:
+  level:
+    com.smartomni: DEBUG

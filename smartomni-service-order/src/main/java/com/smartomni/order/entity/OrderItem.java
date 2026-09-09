@@ -1,0 +1,26 @@
+package com.smartomni.order.entity;
+
+import com.smartomni.common.entity.BaseEntity;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+
+@Getter
+@Setter
+@Entity
+@Table(name = "order_items")
+public class OrderItem extends BaseEntity {
+
+    @Column(name = "order_id", nullable = false)
+    private Long orderId;
+
+    @Column(name = "sku_id", nullable = false)
+    private Long skuId;
+
+    private Integer quantity;
+
+    @Column(name = "unit_price")
+    private BigDecimal unitPrice;
+}

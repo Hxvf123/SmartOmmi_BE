@@ -1,0 +1,467 @@
+// =========================================================
+// SMARTOMNI - MULTI-TENANT OMNICHANNEL RETAIL PLATFORM
+// DBML Schema - 100% coverage of 43 UC / 93 FR
+// Paste toan bo file nay vao https://dbdiagram.io de xem truc quan
+// =========================================================
+
+// ---------- ENUMS ----------
+Enum user_role {
+  super_admin
+  admin
+  manager
+}
+
+Enum user_status {
+  active
+  disabled
+}
+
+Enum tenant_status {
+  active
+  locked
+}
+
+Enum platform_type {
+  shopee
+  tiktok_shop
+  storefront
+}
+
+Enum connection_status {
+  connected
+  error
+  disconnected
+}
+
+Enum product_status {
+  active
+  hidden
+}
+
+Enum order_status {
+  pending
+  confirmed
+  shipping
+  delivered
+  cancelled
+  returned
+}
+
+Enum order_source {
+  webhook
+  polling
+  manual
+}
+
+Enum refund_status {
+  requested
+  approved
+  rejected
+  completed
+}
+
+Enum outbox_status {
+  pending
+  sent
+  failed
+}
+
+Enum promotion_scope {
+  all
+  category
+  sku
+}
+
+Enum model_type {
+  demand_forecasting
+  recommendation
+}
+
+Enum model_status {
+  training
+  active
+  rolled_back
+}
+
+Enum interaction_type {
+  view
+  cart
+  purchase
+}
+
+Enum ticket_status {
+  open
+  in_progress
+  resolved
+}
+
+Enum security_event_type {
+  rls_violation
+  cross_tenant_test
+  login_failure
+  brute_force_lock
+}
+
+Enum sync_scope {
+  tenant
+  product
+}
+
+// ---------- 0. TENANT & SUBSCRIPTION ----------
+
+Table tenants {
+  id integer [pk, increment]
+  name varchar
+  subdomain varchar [unique, not null]
+  status tenant_status [default: 'active']
+  plan_id integer [ref: > subscription_plans.id]
+  locked_reason varchar
+  locked_by integer [ref: > users.id]
+  locked_at timestamp
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table subscription_plans {
+  id integer [pk, increment]
+  name varchar [unique]
+  price decimal
+  max_skus integer
+  max_marketplace_connections integer
+  storage_limit_mb integer
+  updated_by integer [ref: > users.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table plan_feature_flags {
+  id integer [pk, increment]
+  plan_id integer [ref: > subscription_plans.id]
+  feature_key varchar
+  enabled boolean [default: false]
+
+  indexes {
+    (plan_id, feature_key) [unique]
+  }
+}
+
+Table tenant_subscription_history {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  old_plan_id integer [ref: > subscription_plans.id]
+  new_plan_id integer [ref: > subscription_plans.id]
+  changed_by integer [ref: > users.id]
+  changed_at timestamp [default: `now()`]
+}
+
+Table resource_usage {
+  id integer [pk, increment]
+  tenant_id integer [ref: - tenants.id]
+  sku_count integer [default: 0]
+  marketplace_connections_count integer [default: 0]
+  storage_used_mb integer [default: 0]
+  last_calculated_at timestamp
+}
+
+// ---------- 1. USERS & AUTH ----------
+
+Table users {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id, note: 'NULL neu role = super_admin']
+  email varchar [unique, not null]
+  password_hash varchar [not null]
+  full_name varchar
+  role user_role [not null]
+  status user_status [default: 'active']
+  failed_login_attempts integer [default: 0]
+  locked_until timestamp
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table password_reset_tokens {
+  id integer [pk, increment]
+  user_id integer [ref: > users.id]
+  token varchar [unique, not null]
+  expires_at timestamp [not null]
+  used boolean [default: false]
+  created_at timestamp [default: `now()`]
+}
+
+Table auth_sessions {
+  id integer [pk, increment]
+  user_id integer [ref: > users.id]
+  jwt_id varchar [unique, not null]
+  issued_at timestamp
+  expires_at timestamp
+  revoked boolean [default: false]
+}
+
+// ---------- 2. MARKETPLACE CONNECTION ----------
+
+Table marketplace_connections {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  platform platform_type [not null]
+  app_key varchar
+  app_secret_encrypted varchar
+  webhook_url varchar
+  status connection_status [default: 'connected']
+  auto_import_products boolean [default: false]
+  connected_at timestamp [default: `now()`]
+
+  indexes {
+    (tenant_id, platform) [unique]
+  }
+}
+
+// ---------- 3. CATALOG / PRODUCT ----------
+
+Table products {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  name varchar [not null]
+  description text
+  status product_status [default: 'active']
+  created_by integer [ref: > users.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table product_skus {
+  id integer [pk, increment]
+  product_id integer [ref: > products.id]
+  tenant_id integer [ref: > tenants.id]
+  sku_code varchar [not null]
+  variant_name varchar
+  base_price decimal
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (tenant_id, sku_code) [unique]
+  }
+}
+
+Table product_images {
+  id integer [pk, increment]
+  product_id integer [ref: > products.id]
+  tenant_id integer [ref: > tenants.id]
+  url varchar [not null]
+  sort_order integer [default: 0]
+  created_at timestamp [default: `now()`]
+}
+
+Table product_marketplace_links {
+  id integer [pk, increment]
+  sku_id integer [ref: > product_skus.id]
+  tenant_id integer [ref: > tenants.id]
+  platform platform_type [not null]
+  platform_item_id varchar
+  platform_product_url varchar
+  platform_price decimal
+  last_synced_at timestamp
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (sku_id, platform) [unique]
+  }
+}
+
+Table price_sync_configs {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  scope sync_scope [not null]
+  sku_id integer [ref: > product_skus.id]
+  platform platform_type
+  sync_enabled boolean [default: false]
+  sync_frequency_minutes integer
+  created_at timestamp [default: `now()`]
+}
+
+Table price_sync_history {
+  id integer [pk, increment]
+  sku_id integer [ref: > product_skus.id]
+  tenant_id integer [ref: > tenants.id]
+  platform platform_type
+  old_price decimal
+  new_price decimal
+  is_anomaly boolean [default: false]
+  confirmed_by integer [ref: > users.id]
+  changed_at timestamp [default: `now()`]
+}
+
+// ---------- 4. INVENTORY & OUTBOX ----------
+
+Table inventory {
+  id integer [pk, increment]
+  sku_id integer [ref: - product_skus.id]
+  tenant_id integer [ref: > tenants.id]
+  quantity_on_hand integer [default: 0]
+  reserved_quantity integer [default: 0]
+  version integer [default: 0]
+  updated_at timestamp
+}
+
+Table inventory_outbox_events {
+  id integer [pk, increment]
+  sku_id integer [ref: > product_skus.id]
+  tenant_id integer [ref: > tenants.id]
+  platform platform_type
+  quantity integer
+  status outbox_status [default: 'pending']
+  retry_count integer [default: 0]
+  created_at timestamp [default: `now()`]
+  processed_at timestamp
+}
+
+// ---------- 5. ORDERS ----------
+
+Table orders {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  platform platform_type [not null]
+  platform_order_id varchar
+  status order_status [default: 'pending']
+  customer_name varchar
+  customer_phone varchar
+  shipping_address text
+  total_amount decimal
+  source order_source
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+
+  indexes {
+    (tenant_id, platform, platform_order_id) [unique]
+  }
+}
+
+Table order_items {
+  id integer [pk, increment]
+  order_id integer [ref: > orders.id]
+  sku_id integer [ref: > product_skus.id]
+  quantity integer
+  unit_price decimal
+}
+
+Table order_status_history {
+  id integer [pk, increment]
+  order_id integer [ref: > orders.id]
+  status order_status
+  changed_by integer [ref: > users.id]
+  changed_at timestamp [default: `now()`]
+}
+
+Table returns_refunds {
+  id integer [pk, increment]
+  order_id integer [ref: > orders.id]
+  tenant_id integer [ref: > tenants.id]
+  reason text
+  status refund_status [default: 'requested']
+  restocked boolean [default: false]
+  created_at timestamp [default: `now()`]
+}
+
+Table webhook_events_log {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  platform platform_type
+  signature_valid boolean
+  raw_payload text
+  queued boolean [default: false]
+  received_at timestamp [default: `now()`]
+}
+
+// ---------- 6. PROMOTIONS & AI ----------
+
+Table promotion_events {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  name varchar
+  discount_percent decimal
+  start_date date
+  end_date date
+  applies_to promotion_scope [default: 'all']
+  sku_id integer [ref: > product_skus.id]
+  created_by integer [ref: > users.id]
+  created_at timestamp [default: `now()`]
+}
+
+Table ai_model_versions {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  model_type model_type [not null]
+  version_number varchar
+  rmse decimal
+  status model_status [default: 'training']
+  trained_at timestamp [default: `now()`]
+}
+
+Table demand_forecasts {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  sku_id integer [ref: > product_skus.id]
+  model_version_id integer [ref: > ai_model_versions.id]
+  forecast_date date
+  predicted_quantity integer
+  recommended_reorder_qty integer
+  created_at timestamp [default: `now()`]
+}
+
+Table user_item_interactions {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  customer_identifier varchar
+  sku_id integer [ref: > product_skus.id]
+  interaction_type interaction_type [not null]
+  weight integer
+  created_at timestamp [default: `now()`]
+}
+
+Table product_recommendations_cache {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  source_sku_id integer [ref: > product_skus.id]
+  recommended_sku_id integer [ref: > product_skus.id]
+  similarity_score decimal
+  computed_at timestamp [default: `now()`]
+}
+
+Table redirect_click_events {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  sku_id integer [ref: > product_skus.id]
+  platform platform_type
+  clicked_at timestamp [default: `now()`]
+}
+
+// ---------- 7. SUPPORT & SECURITY ----------
+
+Table support_tickets {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  created_by integer [ref: > users.id]
+  assigned_to integer [ref: > users.id]
+  subject varchar
+  description text
+  status ticket_status [default: 'open']
+  created_at timestamp [default: `now()`]
+  resolved_at timestamp
+}
+
+Table security_audit_logs {
+  id integer [pk, increment]
+  tenant_id integer [ref: > tenants.id]
+  event_type security_event_type [not null]
+  details text
+  session_tenant_id integer
+  detected_at timestamp [default: `now()`]
+}
+
+Table system_metric_alerts {
+  id integer [pk, increment]
+  metric_name varchar
+  threshold_value decimal
+  current_value decimal
+  triggered_at timestamp [default: `now()`]
+  resolved boolean [default: false]
+}
