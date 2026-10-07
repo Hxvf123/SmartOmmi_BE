@@ -1,5 +1,7 @@
 package com.smartomni.order.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -13,6 +15,8 @@ import lombok.Setter;
 public class WebhookEventLog extends BaseTenantEntity {
 
     @Enumerated(EnumType.STRING)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(columnDefinition = "platform_type")
     private Order.Platform platform;
 
     @Column(name = "signature_valid")

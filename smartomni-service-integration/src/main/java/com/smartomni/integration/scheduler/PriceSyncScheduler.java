@@ -8,8 +8,9 @@ import com.smartomni.integration.repository.MarketplaceConnectionRepository;
 import com.smartomni.integration.service.AesEncryptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
+import com.smartomni.common.tenant.TenantContext;
 
 import java.math.BigDecimal;
 
@@ -33,14 +34,19 @@ public class PriceSyncScheduler {
     private final AesEncryptionService encryptionService;
     private final ShopeeClient shopeeClient;
     private final TiktokShopClient tiktokShopClient;
+    private final TransactionTemplate transactionTemplate;
     // private final CatalogServiceClient catalogServiceClient; // TODO: lay danh sach SKU da bat dong bo gia + gia hien tai
 
-    @Scheduled(fixedDelayString = "${smartomni.price-sync.fixed-delay-ms:900000}") // mac dinh 15 phut
     public void syncPricesForAllTenants() {
         log.debug("Bat dau chu ky dong bo gia tu dong (UC-43)");
 
-        for (MarketplaceConnection connection : connectionRepository.findByStatus(MarketplaceConnection.ConnectionStatus.CONNECTED)) {
-            try {
+        java.util.List<MarketplaceConnection> connections;
+        try (var scope = TenantContext.openScope(null, "price_sync_worker", null)) {
+            connections = transactionTemplate.execute(status -> connectionRepository
+                    .findByStatus(MarketplaceConnection.ConnectionStatus.CONNECTED));
+        }
+        for (MarketplaceConnection connection : connections) {
+            try (var scope = TenantContext.openScope(connection.getTenantId(), "manager", null)) {
                 syncPricesForConnection(connection);
             } catch (Exception ex) {
                 // FR-090 (A1): retry se duoc xu ly o lan chay ke tiep, giu gia cu

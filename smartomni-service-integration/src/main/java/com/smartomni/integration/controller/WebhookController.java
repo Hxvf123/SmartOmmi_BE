@@ -4,6 +4,7 @@ import com.smartomni.integration.entity.MarketplaceConnection;
 import com.smartomni.integration.repository.MarketplaceConnectionRepository;
 import com.smartomni.integration.service.AesEncryptionService;
 import com.smartomni.integration.service.WebhookSignatureValidator;
+import com.smartomni.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * UC-32: Dong bo don hang qua Webhook (Real-time Sync).
- * FR-057: tenant_id da duoc Gateway trich xuat tu path va gan header X-Tenant-Id,
+ * FR-057: Nginx route theo path; controller xac thuc tenant_id tu webhook path,
  *         nhung endpoint nay van nhan tenantId truc tiep tu path de co the test
  *         doc lap khong can qua Gateway.
  * FR-058: xac thuc chu ky HMAC/SHA256.
@@ -45,8 +46,14 @@ public class WebhookController {
                                                   @RequestBody String rawPayload) {
 
         MarketplaceConnection.Platform platformEnum = MarketplaceConnection.Platform.valueOf(platform.toUpperCase());
-        MarketplaceConnection connection = connectionRepository.findByTenantIdAndPlatform(tenantId, platformEnum)
-                .orElse(null);
+        MarketplaceConnection connection;
+        if (tenantId <= 0) {
+            return ResponseEntity.badRequest().body("Invalid tenant");
+        }
+        // Resolve only this tenant's connection; authenticate the webhook before enqueueing.
+        try (var scope = TenantContext.openScope(tenantId, null, null)) {
+            connection = connectionRepository.findByTenantIdAndPlatform(tenantId, platformEnum).orElse(null);
+        }
 
         if (connection == null) {
             log.warn("Webhook nhan cho tenant={} nhung khong tim thay ket noi {}", tenantId, platform);

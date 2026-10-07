@@ -9,7 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.List;
 
 /**
- * Client goi sang AI Microservice viet bang Python (FastAPI/Flask) - noi thuc su
+ * Client goi sang AI Microservice viet bang Python (FastAPI) - noi thuc su
  * chay Prophet/ARIMA (UC-14/UC-35) va tinh Cosine Similarity (UC-07/UC-36).
  * Repo Python duoc quan ly rieng, xem README goc de biet dia chi repo do.
  *

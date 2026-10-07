@@ -4,7 +4,7 @@ Nền tảng bán lẻ đa kênh & tối ưu hóa chuỗi cung ứng tích hợp
 
 ## Chiến lược tổ chức code: MONO-REPO
 
-Toàn bộ 9 module (8 service + thư viện dùng chung) nằm trong **1 repo Git duy nhất** để team dễ quản lý tập trung:
+Toàn bộ 7 domain service Java, Quartz worker Java, 2 thư viện dùng chung, module kiểm thử migration và Nginx nằm trong **1 repo Git duy nhất** để team dễ quản lý tập trung:
 
 - 1 lần `git clone` → thấy toàn bộ hệ thống, không phải gom nhiều repo.
 - 1 lệnh `mvn clean install` (hoặc `make build`) → build hết tất cả module theo đúng thứ tự phụ thuộc.
@@ -18,8 +18,8 @@ Toàn bộ 9 module (8 service + thư viện dùng chung) nằm trong **1 repo G
 
 ```
                               ┌─────────────────────┐
-                              │   API Gateway        │  (smartomni-gateway :8080)
-                              │  - Resolve tenant_id  │
+                              │   Nginx Gateway      │  (:8080)
+                              │  - Reverse proxy      │
                               │  - Route theo service │
                               └──────────┬───────────┘
               ┌───────────┬──────────────┼──────────────┬──────────────┬────────────┐
@@ -39,8 +39,11 @@ Toàn bộ 9 module (8 service + thư viện dùng chung) nằm trong **1 repo G
 
 | Module | Vai trò | UC/FR chính |
 |---|---|---|
+| `smartomni-db-migrations` | Flyway SQL dùng chung cho toàn database | Schema lifecycle |
+| `smartomni-migration-tests` | Kiểm thử PostgreSQL 16 và khởi động JAR service | Verification |
 | `smartomni-common` | Thư viện dùng chung: TenantContext, JWT, exception handler, base entity | Cross-cutting |
-| `smartomni-gateway` | API Gateway (Spring Cloud Gateway) — resolve tenant từ subdomain/path | UC-21 (webhook path) |
+| `nginx/` | API Gateway: reverse proxy API/webhook, chặn route nội bộ | Routing |
+| `smartomni-jobs/` | Spring Boot + Quartz worker (Java): lập lịch polling, price sync, outbox | Background jobs |
 | `smartomni-service-auth` | Đăng nhập/đăng xuất/quên mật khẩu, JWT issuance | UC-01, 02, 03 |
 | `smartomni-service-tenant` | Onboarding, gói dịch vụ, feature flag, resource usage, support ticket, security audit | UC-17→31, 34, 35 |
 | `smartomni-service-catalog` | Sản phẩm, SKU, ảnh, link sàn TMĐT, khuyến mãi, cấu hình đồng bộ giá | UC-08, 09, 15, 16, 22, 23 |
@@ -49,7 +52,9 @@ Toàn bộ 9 module (8 service + thư viện dùng chung) nằm trong **1 repo G
 | `smartomni-service-integration` | Kết nối Shopee/TikTok Shop, fetch sản phẩm/giá tự động | UC-18, 42, 43 |
 | `smartomni-service-ai` | Lưu kết quả forecast/recommendation, gọi AI Service (Python) ngoài | UC-07, 14, 31, 35, 36, 37 |
 
-> **Lưu ý:** AI core (Prophet/ARIMA, Collaborative Filtering) được huấn luyện bởi một **AI microservice viết bằng Python** (nằm ngoài repo Spring Boot này). `smartomni-service-ai` chỉ đóng vai trò Java gateway: gọi REST sang service Python, lưu kết quả, và expose API cho các service khác/Admin ERP.
+> **Lưu ý:** AI core là **FastAPI service viết bằng Python** nằm ngoài repo này. `smartomni-service-ai` gọi REST sang Python, lưu kết quả và expose API cho các service khác/Admin ERP. Đặt `PYTHON_AI_BASE_URL` theo địa chỉ chạy thực tế. Hangfire chỉ dành cho .NET nên khung Java dùng Quartz.
+
+Thư mục `smartomni-gateway/` là mã Spring Gateway cũ, đã được loại khỏi Maven reactor và Docker Compose; không dùng để chạy hệ thống. Nginx không cấp quyền tenant từ header. Mỗi Java service xác thực JWT và lập `TenantContext`; webhook tự xác thực chữ ký và tenant theo path.
 
 ## 2. Yêu cầu môi trường
 
@@ -59,9 +64,15 @@ Toàn bộ 9 module (8 service + thư viện dùng chung) nằm trong **1 repo G
 
 ## 3. Chạy dự án (local dev)
 
+Thành viên thiết lập trên máy mới: [Hướng dẫn cấu hình database local bằng Docker Compose](docs/local-database-setup.md).
+
+Trước khi chạy, copy `.env.example` thành `.env` và thay các placeholder secret. Bảy service dùng **Flyway migration chung** để tạo/cập nhật 44 bảng khi khởi động; Hibernate chỉ kiểm tra schema (`validate`). PostgreSQL bootstrap chỉ provision role. Hướng dẫn database mới, chuyển database hiện có và kiểm thử: [Database migrations](docs/database-migrations.md).
+
+Khi chạy từ IDE, đặt `DB_APP_PASSWORD`, `DB_MIGRATION_PASSWORD`, `JWT_SECRET` và các biến môi trường service cần; Spring Boot không tự đọc `.env` của Docker Compose.
+
 ### Cách 1 — Chạy toàn bộ hệ thống bằng Docker (khuyến nghị khi mới clone)
 ```bash
-make up        # build image + chạy tất cả (hạ tầng + 8 service)
+make up        # build image + chạy hạ tầng, Nginx, 7 domain service Java, Quartz worker
 make logs      # xem log
 make down      # tắt toàn bộ
 ```
@@ -74,6 +85,8 @@ make infra-up  # chỉ bật Postgres, Redis, RabbitMQ
 cd smartomni-service-auth && mvn spring-boot:run
 # hoặc mở project ở thư mục gốc bằng IDE (IntelliJ/VSCode), mỗi module có Application class riêng
 ```
+
+`INTERNAL_JOB_TOKEN` trong `.env` là khóa nội bộ dùng giữa Quartz worker và ba Java service có job. Nginx chỉ mở cổng 8080; các cổng Java chỉ ở mạng Compose. Quartz đang dùng bộ nhớ cho khung local, tạo lại lịch khi worker khởi động và chạy outbox mỗi 30 giây; trước khi chạy nhiều worker trên server cần chuyển sang JDBC job store và migration schema Quartz. Python FastAPI chạy riêng: khi chạy trên máy host, mặc định Java container gọi `http://host.docker.internal:8000`; khi deploy chung mạng Docker, đặt `PYTHON_AI_BASE_URL=http://<ten-service>:8000`.
 
 Xem `make help` để biết toàn bộ lệnh tiện ích (build, test, rebuild, ps...).
 
@@ -89,7 +102,7 @@ com.smartomni.<service>/
  ├── entity/         # JPA entities (map theo DBML schema)
  ├── dto/            # Request/Response DTO
  ├── config/         # Security, Swagger, Beans config
- ├── scheduler/      # @Scheduled jobs (nếu có: polling, price sync...)
+ ├── scheduler/      # Logic job được Quartz worker gọi qua /internal/jobs/*
  ├── mq/             # RabbitMQ producer/consumer (nếu có)
  └── client/         # Feign/RestTemplate client gọi service khác (nếu có)
 ```
@@ -97,9 +110,9 @@ com.smartomni.<service>/
 ## 5. Quy tắc multi-tenant (bắt buộc đọc trước khi code)
 
 1. Mọi entity nghiệp vụ **phải** kế thừa `BaseTenantEntity` (có sẵn `tenant_id`).
-2. Mọi request vào hệ thống đi qua Gateway sẽ được gắn `tenant_id` vào header nội bộ `X-Tenant-Id` (từ subdomain hoặc JWT claim).
+2. Các service lấy tenant/user/role từ JWT đã xác thực. Header nội bộ `X-Tenant-Id`/`X-User-Role` không tự cấp quyền RLS; webhook có lookup tenant riêng và phải xác thực chữ ký.
 3. `TenantContext` (ThreadLocal, trong `smartomni-common`) dùng để lấy `tenant_id` hiện tại trong toàn bộ vòng đời request — **không** truyền tenant_id qua tham số thủ công.
-4. Không viết native query thiếu điều kiện `tenant_id`; ưu tiên bật Hibernate Filter/PostgreSQL RLS ở tầng DB (xem `docs/architecture.md`).
+4. PostgreSQL RLS được bật bằng migration. Transaction manager thiết lập context database trên từng transaction; không viết native query thiếu điều kiện tenant. Xem `docs/database-migrations.md`.
 
 ## 6. Tài liệu liên quan
 

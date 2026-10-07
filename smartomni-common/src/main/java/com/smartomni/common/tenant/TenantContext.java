@@ -43,6 +43,26 @@ public class TenantContext {
         return "SUPER_ADMIN".equalsIgnoreCase(CURRENT_ROLE.get());
     }
 
+    /** Restore the previous context after background work, including exceptions. */
+    public static Scope openScope(Long tenantId, String role, Long userId) {
+        Scope scope = new Scope(getTenantId(), getCurrentRole(), getCurrentUserId());
+        clear();
+        setTenantId(tenantId);
+        setCurrentRole(role);
+        setCurrentUserId(userId);
+        return scope;
+    }
+
+    public record Scope(Long tenantId, String role, Long userId) implements AutoCloseable {
+        @Override
+        public void close() {
+            clear();
+            setTenantId(tenantId);
+            setCurrentRole(role);
+            setCurrentUserId(userId);
+        }
+    }
+
     /** Bat buoc goi trong finally block cua Filter de tranh leak ThreadLocal giua cac request (thread pool tai su dung). */
     public static void clear() {
         CURRENT_TENANT.remove();

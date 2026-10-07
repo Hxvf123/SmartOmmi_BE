@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.smartomni</groupId>
+        <artifactId>smartomni-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>smartomni-migration-tests</artifactId>
+    <description>PostgreSQL 16 migration and tenant isolation verification</description>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.zonky.test.postgres</groupId>
+                <artifactId>embedded-postgres-binaries-bom</artifactId>
+                <version>16.14.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <dependencies>
+        <dependency><groupId>com.smartomni</groupId><artifactId>smartomni-service-auth</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>com.smartomni</groupId><artifactId>smartomni-service-tenant</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>com.smartomni</groupId><artifactId>smartomni-service-catalog</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>com.smartomni</groupId><artifactId>smartomni-service-inventory</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>com.smartomni</groupId><artifactId>smartomni-service-order</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>com.smartomni</groupId><artifactId>smartomni-service-integration</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>com.smartomni</groupId><artifactId>smartomni-service-ai</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>io.zonky.test</groupId><artifactId>embedded-postgres</artifactId><version>2.2.2</version><scope>test</scope></dependency>
+        <!-- Embedded Postgres' archive reader requires a newer Lang than Boot 3.3 manages. -->
+        <dependency><groupId>org.apache.commons</groupId><artifactId>commons-lang3</artifactId><version>3.20.0</version><scope>test</scope></dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <java.io.tmpdir>${project.build.directory}/postgres-tmp</java.io.tmpdir>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <java.io.tmpdir>${project.build.directory}/postgres-tmp</java.io.tmpdir>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

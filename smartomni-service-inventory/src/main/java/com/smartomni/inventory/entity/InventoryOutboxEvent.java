@@ -1,5 +1,7 @@
 package com.smartomni.inventory.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -23,12 +25,15 @@ public class InventoryOutboxEvent extends BaseTenantEntity {
     private Long skuId;
 
     @Enumerated(EnumType.STRING)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(columnDefinition = "platform_type")
     private Platform platform;
 
     private Integer quantity;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "outbox_status")
     private OutboxStatus status = OutboxStatus.PENDING;
 
     @Column(name = "retry_count")

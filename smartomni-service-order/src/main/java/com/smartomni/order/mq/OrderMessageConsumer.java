@@ -4,6 +4,7 @@ import com.smartomni.order.config.RabbitMQConfig;
 import com.smartomni.order.dto.WebhookOrderPayload;
 import com.smartomni.order.entity.Order;
 import com.smartomni.order.service.OrderService;
+import com.smartomni.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -30,7 +31,10 @@ public class OrderMessageConsumer {
     public void handleIncomingOrder(WebhookOrderPayload payload) {
         log.info("Nhan duoc order message: tenant={}, platform={}, orderId={}",
                 payload.getTenantId(), payload.getPlatform(), payload.getPlatformOrderId());
-        try {
+        if (payload.getTenantId() == null || payload.getTenantId() <= 0) {
+            throw new IllegalArgumentException("Incoming order must have a valid tenant ID");
+        }
+        try (var scope = TenantContext.openScope(payload.getTenantId(), "manager", null)) {
             orderService.processIncomingOrder(payload, Order.OrderSource.WEBHOOK);
         } catch (Exception ex) {
             log.error("Xu ly order message that bai, se duoc retry/DLQ: {}", ex.getMessage());

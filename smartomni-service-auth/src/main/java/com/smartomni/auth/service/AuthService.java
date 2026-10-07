@@ -8,6 +8,8 @@ import com.smartomni.auth.repository.PasswordResetTokenRepository;
 import com.smartomni.auth.repository.UserRepository;
 import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.security.JwtTokenProvider;
+import com.smartomni.common.persistence.RlsSession;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,10 +38,12 @@ public class AuthService {
     private final PasswordResetTokenRepository resetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final EntityManager entityManager;
     // private final MailService mailService; // TODO: tich hop gui email that (UC-03)
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
+        RlsSession.set(entityManager, "app.auth_email", request.getEmail());
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BusinessException("Email hoac mat khau khong dung", HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS"));
 
@@ -80,6 +84,7 @@ public class AuthService {
 
     @Transactional
     public void forgotPassword(String email) {
+        RlsSession.set(entityManager, "app.auth_email", email);
         // FR-005: khong tiet lo email co ton tai hay khong (bao mat)
         userRepository.findByEmail(email).ifPresent(user -> {
             PasswordResetToken resetToken = new PasswordResetToken();
@@ -94,6 +99,7 @@ public class AuthService {
 
     @Transactional
     public void resetPassword(String token, String newPassword) {
+        RlsSession.set(entityManager, "app.reset_token", token);
         PasswordResetToken resetToken = resetTokenRepository.findByTokenAndUsedFalse(token)
                 .orElseThrow(() -> new BusinessException("Token khong hop le hoac da duoc su dung"));
 
@@ -101,6 +107,7 @@ public class AuthService {
             throw new BusinessException("Token dat lai mat khau da het han");
         }
 
+        RlsSession.set(entityManager, "app.auth_user_id", resetToken.getUserId().toString());
         User user = userRepository.findById(resetToken.getUserId())
                 .orElseThrow(() -> new BusinessException("Nguoi dung khong ton tai"));
 

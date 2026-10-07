@@ -1,8 +1,12 @@
-version: "3.8"
+x-database-environment: &database-environment
+  DB_URL: jdbc:postgresql://postgres:5432/smartomni
+  DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}
+  DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?Set DB_MIGRATION_PASSWORD in .env}
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
 
 # =====================================================================
 # SMARTOMNI - MONO-REPO: 1 file docker-compose chay TOAN BO he thong
-# (ha tang + 8 service Spring Boot) tu 1 repo duy nhat.
+# (ha tang + Nginx + 7 domain service Spring Boot + Quartz worker Java) tu 1 repo.
 #
 #   docker compose up -d --build      # build + chay tat ca
 #   docker compose up -d postgres redis rabbitmq   # chi chay ha tang (khi dev tung service bang IDE)
@@ -17,15 +21,18 @@ services:
     container_name: smartomni-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: smartomni
-      POSTGRES_PASSWORD: smartomni
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: smartomni
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?Set DB_MIGRATION_PASSWORD in .env}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/db/00-bootstrap-roles.sh:/docker-entrypoint-initdb.d/00-bootstrap-roles.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U smartomni"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d smartomni"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -46,7 +53,7 @@ services:
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: smartomni
-      RABBITMQ_DEFAULT_PASS: smartomni
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -55,36 +62,59 @@ services:
 
   # ---------------------- APPLICATION SERVICES ----------------------
   gateway:
-    build:
-      context: .
-      dockerfile: smartomni-gateway/Dockerfile
+    image: nginx:stable-alpine
     container_name: smartomni-gateway
     ports: ["8080:8080"]
-    depends_on: [auth-service, tenant-service]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [auth-service, tenant-service, catalog-service, inventory-service, order-service, integration-service, ai-service]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  jobs-service:
+    build:
+      context: .
+      dockerfile: smartomni-jobs/Dockerfile
+    container_name: smartomni-jobs-service
+    depends_on:
+      order-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      integration-service:
+        condition: service_started
+    environment:
+      INTERNAL_JOB_TOKEN: ${INTERNAL_JOB_TOKEN:?Set INTERNAL_JOB_TOKEN in .env}
+      ORDER_JOB_URL: http://order-service:8085/internal/jobs/poll-orders
+      INTEGRATION_JOB_URL: http://integration-service:8086/internal/jobs/sync-prices
+      INVENTORY_JOB_URL: http://inventory-service:8084/internal/jobs/publish-outbox
 
   auth-service:
     build:
       context: .
       dockerfile: smartomni-service-auth/Dockerfile
     container_name: smartomni-auth-service
-    ports: ["8081:8081"]
+    expose: ["8081"]
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      <<: *database-environment
 
   tenant-service:
     build:
       context: .
       dockerfile: smartomni-service-tenant/Dockerfile
     container_name: smartomni-tenant-service
-    ports: ["8082:8082"]
+    expose: ["8082"]
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      <<: *database-environment
       SPRING_DATA_REDIS_HOST: redis
 
   catalog-service:
@@ -92,12 +122,12 @@ services:
       context: .
       dockerfile: smartomni-service-catalog/Dockerfile
     container_name: smartomni-catalog-service
-    ports: ["8083:8083"]
+    expose: ["8083"]
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      <<: *database-environment
       SMARTOMNI_SERVICES_TENANT-URL: http://tenant-service:8082
 
   inventory-service:
@@ -105,61 +135,68 @@ services:
       context: .
       dockerfile: smartomni-service-inventory/Dockerfile
     container_name: smartomni-inventory-service
-    ports: ["8084:8084"]
+    expose: ["8084"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      <<: *database-environment
       SPRING_DATA_REDIS_HOST: redis
+      SMARTOMNI_JOBS_TOKEN: ${INTERNAL_JOB_TOKEN:?Set INTERNAL_JOB_TOKEN in .env}
 
   order-service:
     build:
       context: .
       dockerfile: smartomni-service-order/Dockerfile
     container_name: smartomni-order-service
-    ports: ["8085:8085"]
+    expose: ["8085"]
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      <<: *database-environment
       SPRING_RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
       SMARTOMNI_SERVICES_INVENTORY-URL: http://inventory-service:8084
+      SMARTOMNI_JOBS_TOKEN: ${INTERNAL_JOB_TOKEN:?Set INTERNAL_JOB_TOKEN in .env}
 
   integration-service:
     build:
       context: .
       dockerfile: smartomni-service-integration/Dockerfile
     container_name: smartomni-integration-service
-    ports: ["8086:8086"]
+    expose: ["8086"]
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      <<: *database-environment
+      SMARTOMNI_ENCRYPTION_AES_KEY: ${SMARTOMNI_ENCRYPTION_AES_KEY:?Set SMARTOMNI_ENCRYPTION_AES_KEY in .env}
       SPRING_RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      SMARTOMNI_JOBS_TOKEN: ${INTERNAL_JOB_TOKEN:?Set INTERNAL_JOB_TOKEN in .env}
 
   ai-service:
     build:
       context: .
       dockerfile: smartomni-service-ai/Dockerfile
     container_name: smartomni-ai-service
-    ports: ["8087:8087"]
+    expose: ["8087"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      <<: *database-environment
       SPRING_DATA_REDIS_HOST: redis
+      PYTHON_AI_BASE_URL: ${PYTHON_AI_BASE_URL:-http://host.docker.internal:8000}
 
 volumes:
   pgdata:

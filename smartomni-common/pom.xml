@@ -12,7 +12,7 @@
     <artifactId>smartomni-common</artifactId>
     <packaging>jar</packaging>
     <name>smartomni-common</name>
-    <description>Thu vien dung chung: TenantContext, JWT, exception handler, base entity, ApiResponse</description>
+    <description>TenantContext, JWT, exception handler, base entity, ApiResponse</description>
 
     <dependencies>
         <dependency>
@@ -48,6 +48,10 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
     </dependencies>
 </project>

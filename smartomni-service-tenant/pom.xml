@@ -17,6 +17,10 @@
     <dependencies>
         <dependency>
             <groupId>com.smartomni</groupId>
+            <artifactId>smartomni-db-migrations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.smartomni</groupId>
             <artifactId>smartomni-common</artifactId>
         </dependency>
         <dependency>
@@ -51,4 +55,13 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration><classifier>exec</classifier></configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

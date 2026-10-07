@@ -1,5 +1,7 @@
 package com.smartomni.catalog.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -27,11 +29,9 @@ public class PromotionEvent extends BaseTenantEntity {
     private LocalDate endDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "applies_to")
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(name = "applies_to", columnDefinition = "promotion_scope")
     private PromotionScope appliesTo = PromotionScope.ALL;
-
-    @Column(name = "sku_id")
-    private Long skuId; // null neu appliesTo = ALL/CATEGORY
 
     @Column(name = "created_by")
     private Long createdBy;

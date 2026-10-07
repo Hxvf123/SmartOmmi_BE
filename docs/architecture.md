@@ -6,7 +6,7 @@
 Shopee/TikTok Shop
        │  POST /webhook/{tenantId}/{platform}
        ▼
-API Gateway (resolve tenant tu path - FR-057)
+Nginx Gateway (route theo path; Integration Service xac minh tenant webhook)
        ▼
 Integration Service
    ├─ Xac thuc chu ky HMAC/SHA256 (FR-058)
@@ -24,14 +24,14 @@ Inventory Service
    ├─ Optimistic Lock (@Version) - FR-027
    └─ Ghi Outbox Event (CUNG transaction) - FR-074
        ▼
-   Outbox Publisher (scheduled) - FR-075
+   Outbox Publisher (Quartz worker goi endpoint noi bo) - FR-075
        ▼
    Goi lai API UpdateStock len Shopee/TikTok Shop - FR-076
 ```
 
 ## 2. Luong Polling du phong (Fallback Sync)
 
-`OrderPollingScheduler` (trong Order Service) chay dinh ky 2-5 phut, quet
+Quartz worker goi `OrderPollingScheduler` (trong Order Service) moi 3 phut, quet
 qua tung Tenant dang active, goi `IntegrationServiceClient.getOrderList(...)`,
 doi chieu voi Database noi bo, va day cac don hang bi thieu vao lai
 `OrderService.processIncomingOrder(..., OrderSource.POLLING)` — dung chung
@@ -49,7 +49,7 @@ ProductSyncService.importAllProducts()
    ├─ Upsert theo SKU (FR-085) qua Catalog Service
    └─ Dung khi vuot gioi han SKU (FR-086)
 
-PriceSyncScheduler (chay dinh ky theo PriceSyncConfig - UC-42/UC-43)
+Quartz worker goi PriceSyncScheduler (hien moi 15 phut; ve sau theo PriceSyncConfig - UC-42/UC-43)
    ├─ Goi MarketplaceClient.getCurrentPrice()
    ├─ Phat hien chenh lech bat thuong (FR-092)
    └─ Cap nhat gia rieng theo tung kenh (FR-091) + ghi log lich su (FR-093)
@@ -94,7 +94,7 @@ CREATE POLICY tenant_isolation_policy ON products
 
 | Service | Port |
 |---|---|
-| Gateway | 8080 |
+| Nginx Gateway (cong public) | 8080 |
 | Auth | 8081 |
 | Tenant | 8082 |
 | Catalog | 8083 |
@@ -103,13 +103,16 @@ CREATE POLICY tenant_isolation_policy ON products
 | Integration | 8086 |
 | AI (Java gateway) | 8087 |
 | AI Microservice (Python, repo rieng) | 8000 |
+| Quartz worker (Java, khong mo cong) | - |
+
+Nginx route API va webhook theo `nginx/nginx.conf`; Java service xac thuc JWT va tenant. Quartz worker Spring Boot trong `smartomni-jobs/` POST cac endpoint `/internal/jobs/*` bang token noi bo; Nginx chan cac path nay. Lich local dung Quartz memory job store, outbox moi 30 giay; can JDBC job store truoc khi scale worker tren server. Python FastAPI la service rieng, Java AI service goi qua `PYTHON_AI_BASE_URL`.
 
 ## 7. Viec can lam tiep (TODO tong hop)
 
 - [ ] Trien khai that Shopee/TikTok Open API trong `ShopeeClient`/`TiktokShopClient`
 - [ ] Feign client thuc su giua Catalog <-> Integration <-> Inventory <-> Tenant (hien dang comment TODO)
 - [ ] Bat PostgreSQL Row-Level Security that su (hien tai chi enforce o tang application)
-- [ ] Thay `ddl-auto: update` bang Flyway/Liquibase migration truoc khi len production
+- [x] Flyway migration chung cho 7 service; Hibernate `validate`. Xem [database-migrations.md](database-migrations.md).
 - [ ] Tich hop Eureka/Consul hoac Kubernetes Service Discovery thay cho URL hard-code
 - [ ] Trien khai AI Microservice (Python) rieng, dong bo API contract voi `PythonAiServiceClient`
 - [ ] Bo sung Unit Test / Integration Test (Testcontainers cho Postgres/RabbitMQ)

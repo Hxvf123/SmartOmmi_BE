@@ -1,6 +1,9 @@
 # Maven
 target/
 *.class
+*.hprof
+hs_err_pid*
+replay_pid*
 
 # IDE
 .idea/
@@ -10,6 +13,9 @@ target/
 .classpath
 .project
 .settings/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
@@ -17,11 +23,48 @@ Thumbs.db
 
 # Logs
 *.log
+*.log.*
+*.out
+*.err
 logs/
 
-# Env
-.env
-*.env.local
+# Local environment and credentials; keep shareable examples in Git
+.env*
+!.env.example
+*.env
+!*.env.example
+# Keep environment-specific Spring configuration out of commits by default.
+application-*.yml
+application-*.yaml
+application-*.properties
+bootstrap-*.yml
+bootstrap-*.yaml
+bootstrap-*.properties
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.json
+service-account*.json
+
+# Local Compose overrides and database exports
+docker-compose.override.yml
+docker-compose.override.yaml
+compose.override.yml
+compose.override.yaml
+docker-compose.local.yml
+docker-compose.local.yaml
+compose.local.yml
+compose.local.yaml
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.pgdump
+*.sql.gz
 
 # Build
 build/
@@ -29,3 +72,11 @@ out/
 
 # Docker volumes data (if mounted locally)
 docker-data/
+
+# Local build and verification scratch files
+.work/
+.maven-cache/
+*.tmp
+*.bak
+*.orig
+*.rej

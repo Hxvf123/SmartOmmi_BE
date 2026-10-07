@@ -1,5 +1,7 @@
 package com.smartomni.catalog.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -19,7 +21,8 @@ public class Product extends BaseTenantEntity {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "product_status")
     private ProductStatus status = ProductStatus.ACTIVE;
 
     @Column(name = "created_by")

@@ -1,5 +1,7 @@
 package com.smartomni.order.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -15,18 +17,23 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @Entity
-@Table(name = "orders", uniqueConstraints = @UniqueConstraint(columnNames = {"tenant_id", "platform", "platform_order_id"}))
+@Table(name = "orders", uniqueConstraints = @UniqueConstraint(columnNames = {"tenant_id", "connection_id", "platform_order_id"}))
 public class Order extends BaseTenantEntity {
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "platform_type")
     private Platform platform;
+
+    @Column(name = "connection_id")
+    private Long connectionId;
 
     @Column(name = "platform_order_id")
     private String platformOrderId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "order_status")
     private OrderStatus status = OrderStatus.PENDING;
 
     @Column(name = "customer_name")
@@ -42,10 +49,11 @@ public class Order extends BaseTenantEntity {
     private BigDecimal totalAmount;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "order_source")
     private OrderSource source; // WEBHOOK | POLLING | MANUAL - FR-025
 
     public enum Platform { SHOPEE, TIKTOK_SHOP }
-    public enum OrderStatus { PENDING, CONFIRMED, SHIPPING, DELIVERED, CANCELLED, RETURNED }
+    public enum OrderStatus { PENDING, TO_SHIP, SHIPPED, DELIVERING, COMPLETED, CANCELLED, RETURNED }
     public enum OrderSource { WEBHOOK, POLLING, MANUAL }
 }

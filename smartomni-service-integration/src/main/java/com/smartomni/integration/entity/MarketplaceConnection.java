@@ -1,5 +1,7 @@
 package com.smartomni.integration.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -12,12 +14,16 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "marketplace_connections", uniqueConstraints = @UniqueConstraint(columnNames = {"tenant_id", "platform"}))
+@Table(name = "marketplace_connections", uniqueConstraints = @UniqueConstraint(columnNames = {"tenant_id", "platform", "shop_id"}))
 public class MarketplaceConnection extends BaseTenantEntity {
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "platform_type")
     private Platform platform;
+
+    @Column(name = "shop_id")
+    private String shopId;
 
     @Column(name = "app_key")
     private String appKey;
@@ -29,7 +35,8 @@ public class MarketplaceConnection extends BaseTenantEntity {
     private String webhookUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "connection_status")
     private ConnectionStatus status = ConnectionStatus.CONNECTED;
 
     @Column(name = "auto_import_products")

@@ -1,5 +1,7 @@
 package com.smartomni.tenant.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -26,6 +28,8 @@ public class SupportTicket extends BaseTenantEntity {
     private String description;
 
     @Enumerated(EnumType.STRING)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(columnDefinition = "ticket_status")
     private TicketStatus status = TicketStatus.OPEN;
 
     @Column(name = "resolved_at")

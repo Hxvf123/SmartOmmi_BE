@@ -56,11 +56,12 @@ public class OrderService {
         order.setShippingAddress(payload.getShippingAddress());
         order.setTotalAmount(payload.getTotalAmount());
         order.setSource(source);
-        order.setStatus(Order.OrderStatus.CONFIRMED);
+        order.setStatus(Order.OrderStatus.TO_SHIP);
         order = orderRepository.save(order);
 
         for (var itemPayload : payload.getItems()) {
             OrderItem item = new OrderItem();
+            item.setTenantId(order.getTenantId());
             item.setOrderId(order.getId());
             item.setSkuId(itemPayload.getSkuId());
             item.setQuantity(itemPayload.getQuantity());

@@ -1,7 +1,6 @@
 package com.smartomni.order.scheduler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,7 +18,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class OrderPollingScheduler {
 
-    @Scheduled(fixedDelayString = "${smartomni.polling.fixed-delay-ms:180000}") // mac dinh 3 phut
     public void pollOrdersFromMarketplaces() {
         log.debug("Bat dau chu ky Polling doi chieu don hang (Fallback Sync - UC-34)");
         // TODO: implement nhu mo ta o javadoc phia tren

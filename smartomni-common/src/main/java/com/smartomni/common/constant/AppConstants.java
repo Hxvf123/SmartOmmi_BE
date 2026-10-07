@@ -5,7 +5,7 @@ public final class AppConstants {
     private AppConstants() {
     }
 
-    // Header noi bo do Gateway gan vao sau khi xac thuc/resolve tenant
+    // Header tu client khong duoc tin cay de cap quyen tenant; JWT duoc xac thuc tai Java service.
     public static final String HEADER_TENANT_ID = "X-Tenant-Id";
     public static final String HEADER_USER_ID = "X-User-Id";
     public static final String HEADER_USER_ROLE = "X-User-Role";

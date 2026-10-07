@@ -1,5 +1,7 @@
 package com.smartomni.catalog.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -13,13 +15,16 @@ import lombok.Setter;
 public class PriceSyncConfig extends BaseTenantEntity {
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "sync_scope")
     private SyncScope scope; // TENANT hoac PRODUCT
 
     @Column(name = "sku_id")
     private Long skuId; // null neu scope = TENANT
 
     @Enumerated(EnumType.STRING)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(columnDefinition = "platform_type")
     private ProductMarketplaceLink.Platform platform;
 
     @Column(name = "sync_enabled")

@@ -11,7 +11,7 @@ help:
 	@echo "  make test        - Chay unit test toan bo module"
 	@echo "  make infra-up    - Chi bat ha tang (Postgres, Redis, RabbitMQ) - dung khi chay service qua IDE"
 	@echo "  make infra-down  - Tat ha tang"
-	@echo "  make up          - Build image + chay TOAN BO he thong (ha tang + 8 service) bang Docker"
+	@echo "  make up          - Build image + chay ha tang, Nginx, 7 domain service Java, Quartz worker bang Docker"
 	@echo "  make down        - Tat toan bo he thong Docker"
 	@echo "  make rebuild     - Build lai tu dau (khong dung cache) + chay lai"
 	@echo "  make logs        - Xem log tat ca service (Ctrl+C de thoat)"
