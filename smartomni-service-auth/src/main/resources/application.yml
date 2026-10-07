@@ -5,12 +5,27 @@ spring:
   application:
     name: smartomni-service-auth
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartomni
-    username: smartomni
-    password: smartomni
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartomni}
+    username: smartomni_app
+    password: ${DB_APP_PASSWORD}
+  flyway:
+    enabled: true
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartomni}
+    user: smartomni_migrator
+    password: ${DB_MIGRATION_PASSWORD}
+    locations: classpath:db/migration
+    default-schema: public
+    table: flyway_schema_history
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-migration-naming: true
+  sql:
+    init:
+      mode: never
   jpa:
+    open-in-view: false
     hibernate:
-      ddl-auto: update   # DEV ONLY - production dung Flyway/Liquibase migration
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -18,7 +33,7 @@ spring:
 
 smartomni:
   jwt:
-    secret: "CHANGE_ME_super_secret_key_min_32_chars_______"
+    secret: ${JWT_SECRET}
     expiration-ms: 86400000  # 24h
 
 logging:

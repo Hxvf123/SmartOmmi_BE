@@ -30,8 +30,8 @@
     </properties>
 
     <modules>
+        <module>smartomni-db-migrations</module>
         <module>smartomni-common</module>
-        <module>smartomni-gateway</module>
         <module>smartomni-service-auth</module>
         <module>smartomni-service-tenant</module>
         <module>smartomni-service-catalog</module>
@@ -39,6 +39,8 @@
         <module>smartomni-service-order</module>
         <module>smartomni-service-integration</module>
         <module>smartomni-service-ai</module>
+        <module>smartomni-jobs</module>
+        <module>smartomni-migration-tests</module>
     </modules>
 
     <dependencyManagement>
@@ -53,6 +55,11 @@
             <dependency>
                 <groupId>com.smartomni</groupId>
                 <artifactId>smartomni-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.smartomni</groupId>
+                <artifactId>smartomni-db-migrations</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

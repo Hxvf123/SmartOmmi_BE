@@ -1,5 +1,7 @@
 package com.smartomni.catalog.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -15,14 +17,18 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@Table(name = "product_marketplace_links", uniqueConstraints = @UniqueConstraint(columnNames = {"sku_id", "platform"}))
+@Table(name = "product_marketplace_links", uniqueConstraints = @UniqueConstraint(columnNames = {"sku_id", "connection_id"}))
 public class ProductMarketplaceLink extends BaseTenantEntity {
+
+    @Column(name = "connection_id")
+    private Long connectionId;
 
     @Column(name = "sku_id", nullable = false)
     private Long skuId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "platform_type")
     private Platform platform;
 
     @Column(name = "platform_item_id")

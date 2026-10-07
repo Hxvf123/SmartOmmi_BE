@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
+@org.springframework.transaction.annotation.Transactional(readOnly = true)
 public interface AiModelVersionRepository extends JpaRepository<AiModelVersion, Long> {
     List<AiModelVersion> findByTenantIdAndModelTypeOrderByTrainedAtDesc(Long tenantId, AiModelVersion.ModelType modelType);
     Optional<AiModelVersion> findByTenantIdAndModelTypeAndStatus(Long tenantId, AiModelVersion.ModelType modelType, AiModelVersion.ModelStatus status);

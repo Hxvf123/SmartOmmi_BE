@@ -1,5 +1,7 @@
 package com.smartomni.tenant.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -24,7 +26,8 @@ public class Tenant extends BaseEntity {
     private String subdomain;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "tenant_status")
     private TenantStatus status = TenantStatus.ACTIVE;
 
     @Column(name = "plan_id")

@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: smartomni-jobs
+  main:
+    web-application-type: none
+  quartz:
+    job-store-type: memory
+    auto-startup: true
+
+smartomni:
+  jobs:
+    order-url: ${ORDER_JOB_URL:http://localhost:8085/internal/jobs/poll-orders}
+    integration-url: ${INTEGRATION_JOB_URL:http://localhost:8086/internal/jobs/sync-prices}
+    inventory-url: ${INVENTORY_JOB_URL:http://localhost:8084/internal/jobs/publish-outbox}

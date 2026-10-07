@@ -5,18 +5,33 @@ spring:
   application:
     name: smartomni-service-order
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartomni
-    username: smartomni
-    password: smartomni
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartomni}
+    username: smartomni_app
+    password: ${DB_APP_PASSWORD}
+  flyway:
+    enabled: true
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartomni}
+    user: smartomni_migrator
+    password: ${DB_MIGRATION_PASSWORD}
+    locations: classpath:db/migration
+    default-schema: public
+    table: flyway_schema_history
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-migration-naming: true
+  sql:
+    init:
+      mode: never
   jpa:
+    open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
   rabbitmq:
     host: localhost
     port: 5672
     username: smartomni
-    password: smartomni
+    password: ${RABBITMQ_PASSWORD}
     listener:
       simple:
         retry:
@@ -26,6 +41,8 @@ spring:
           multiplier: 2.0   # FR-062/FR-064: exponential backoff khi retry message
 
 smartomni:
+  jwt:
+    secret: ${JWT_SECRET}
   services:
     inventory-url: http://localhost:8084
   polling:

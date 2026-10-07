@@ -5,12 +5,27 @@ spring:
   application:
     name: smartomni-service-tenant
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartomni
-    username: smartomni
-    password: smartomni
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartomni}
+    username: smartomni_app
+    password: ${DB_APP_PASSWORD}
+  flyway:
+    enabled: true
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartomni}
+    user: smartomni_migrator
+    password: ${DB_MIGRATION_PASSWORD}
+    locations: classpath:db/migration
+    default-schema: public
+    table: flyway_schema_history
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-migration-naming: true
+  sql:
+    init:
+      mode: never
   jpa:
+    open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
   data:
     redis:
@@ -22,3 +37,7 @@ spring:
 logging:
   level:
     com.smartomni: DEBUG
+
+smartomni:
+  jwt:
+    secret: ${JWT_SECRET}

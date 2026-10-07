@@ -19,6 +19,7 @@ public class RecommendationService {
     private final ProductRecommendationCacheRepository cacheRepository;
 
     /** Doc tu cache truoc (da duoc tinh san theo batch); neu chua co, goi Python service tinh ngay (fallback). */
+    @Transactional
     public List<ProductRecommendationCache> getTopRecommendations(Long tenantId, Long skuId) {
         List<ProductRecommendationCache> cached = cacheRepository.findTop3BySourceSkuIdOrderBySimilarityScoreDesc(skuId);
         if (!cached.isEmpty()) {

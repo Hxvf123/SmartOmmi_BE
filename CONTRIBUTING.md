@@ -30,3 +30,9 @@ docs(readme): cập nhật hướng dẫn chạy local
 
 ## Review
 Mỗi PR cần tối thiểu 1 approval từ thành viên khác trước khi merge vào `develop`.
+
+## Database migration
+- Thay đổi schema bằng file `V<n>__description.sql` trong `smartomni-db-migrations/src/main/resources/db/migration/`; không sửa migration đã áp dụng.
+- Giữ Hibernate `ddl-auto: validate`, không bật `update` hoặc tự baseline database hiện có.
+- Thêm grants, RLS policy và index khi thêm bảng; triển khai các service với cùng phiên bản migration.
+- Chạy `mvn clean verify` để kiểm thử PostgreSQL 16 và khởi động JAR từng service. Xem `docs/database-migrations.md` để cấu hình và chuyển schema cũ.

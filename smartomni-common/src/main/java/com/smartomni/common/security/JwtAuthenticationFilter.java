@@ -11,7 +11,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.List;
 
 /**
  * Doc Bearer token tu header Authorization, xac thuc va nap thong tin
@@ -43,12 +44,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 TenantContext.setCurrentUserId(userId);
                 TenantContext.setCurrentRole(role);
-                if (tenantId != null) {
-                    TenantContext.setTenantId(tenantId);
-                }
+                TenantContext.setTenantId(tenantId);
 
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        userId, null, Collections.emptyList());
+                        userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }

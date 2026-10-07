@@ -4,9 +4,9 @@ import com.smartomni.inventory.entity.InventoryOutboxEvent;
 import com.smartomni.inventory.repository.InventoryOutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import com.smartomni.common.tenant.TenantContext;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,11 +26,16 @@ public class OutboxPublisherScheduler {
     private static final int MAX_RETRY = 5;
 
     private final InventoryOutboxEventRepository outboxEventRepository;
+    private final TransactionTemplate transactionTemplate;
     // private final IntegrationServiceClient integrationServiceClient; // TODO: Feign client
 
-    @Scheduled(fixedDelay = 30000) // moi 30 giay
-    @Transactional
     public void publishPendingEvents() {
+        try (var scope = TenantContext.openScope(null, "outbox_worker", null)) {
+            transactionTemplate.executeWithoutResult(status -> publishInTransaction());
+        }
+    }
+
+    private void publishInTransaction() {
         List<InventoryOutboxEvent> pendingEvents =
                 outboxEventRepository.findTop100ByStatusOrderByCreatedAtAsc(InventoryOutboxEvent.OutboxStatus.PENDING);
 

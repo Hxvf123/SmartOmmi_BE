@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
+@org.springframework.transaction.annotation.Transactional(readOnly = true)
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     // FR-025: chong trung lap (idempotency) - dung de kiem tra truoc khi tao moi

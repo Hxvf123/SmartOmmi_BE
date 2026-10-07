@@ -1,5 +1,7 @@
 package com.smartomni.ai.entity;
 
+import org.hibernate.annotations.JdbcType;
+import com.smartomni.common.persistence.LowercasePostgreSQLEnumJdbcType;
 import com.smartomni.common.entity.BaseTenantEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -20,7 +22,8 @@ import java.time.Instant;
 public class AiModelVersion extends BaseTenantEntity {
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "model_type", nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(name = "model_type", nullable = false, columnDefinition = "model_type")
     private ModelType modelType;
 
     @Column(name = "version_number")
@@ -29,7 +32,8 @@ public class AiModelVersion extends BaseTenantEntity {
     private BigDecimal rmse;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcType(LowercasePostgreSQLEnumJdbcType.class)
+    @Column(nullable = false, columnDefinition = "model_status")
     private ModelStatus status = ModelStatus.TRAINING;
 
     @Column(name = "trained_at")

@@ -1,6 +1,7 @@
 package com.smartomni.common.tenant;
 
 import com.smartomni.common.constant.AppConstants;
+import com.smartomni.common.security.JwtTokenProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,34 +13,34 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * Doc header noi bo X-Tenant-Id (do API Gateway gan vao sau khi resolve
- * tu subdomain / webhook path / JWT claim) va nap vao TenantContext cho
- * toan bo vong doi request. Neu service duoc goi truc tiep (khong qua
- * Gateway, vd trong moi truong dev/test) van co the truyen header nay
- * thu cong de mo phong tenant.
+ * Load tenant context only from a verified JWT before the security chain.
+ * Never trust client-supplied X-User-Role/X-Tenant-Id for RLS authorization.
+ * Webhooks establish a narrowly scoped tenant lookup in their controller.
  */
 @Component
-@Order(1)
+@Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE + 10)
 public class TenantFilter extends OncePerRequestFilter {
+
+    private final JwtTokenProvider jwtTokenProvider;
+
+    public TenantFilter(JwtTokenProvider jwtTokenProvider) {
+        this.jwtTokenProvider = jwtTokenProvider;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                      HttpServletResponse response,
                                      FilterChain filterChain) throws ServletException, IOException {
         try {
-            String tenantHeader = request.getHeader(AppConstants.HEADER_TENANT_ID);
-            if (tenantHeader != null && !tenantHeader.isBlank()) {
-                TenantContext.setTenantId(Long.valueOf(tenantHeader));
-            }
-
-            String roleHeader = request.getHeader(AppConstants.HEADER_USER_ROLE);
-            if (roleHeader != null) {
-                TenantContext.setCurrentRole(roleHeader);
-            }
-
-            String userHeader = request.getHeader(AppConstants.HEADER_USER_ID);
-            if (userHeader != null && !userHeader.isBlank()) {
-                TenantContext.setCurrentUserId(Long.valueOf(userHeader));
+            TenantContext.clear();
+            String authorization = request.getHeader(AppConstants.HEADER_AUTHORIZATION);
+            if (authorization != null && authorization.startsWith(AppConstants.BEARER_PREFIX)) {
+                String token = authorization.substring(AppConstants.BEARER_PREFIX.length());
+                if (jwtTokenProvider.validateToken(token)) {
+                    TenantContext.setTenantId(jwtTokenProvider.getTenantId(token));
+                    TenantContext.setCurrentRole(jwtTokenProvider.getRole(token));
+                    TenantContext.setCurrentUserId(jwtTokenProvider.getUserId(token));
+                }
             }
 
             filterChain.doFilter(request, response);

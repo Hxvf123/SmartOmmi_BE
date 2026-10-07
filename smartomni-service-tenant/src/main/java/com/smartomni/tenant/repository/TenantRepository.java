@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
+@org.springframework.transaction.annotation.Transactional(readOnly = true)
 public interface TenantRepository extends JpaRepository<Tenant, Long> {
     boolean existsBySubdomain(String subdomain);
     Optional<Tenant> findBySubdomain(String subdomain);

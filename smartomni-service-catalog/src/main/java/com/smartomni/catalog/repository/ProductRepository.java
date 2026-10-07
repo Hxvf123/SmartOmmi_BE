@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+@org.springframework.transaction.annotation.Transactional(readOnly = true)
 public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> findByTenantId(Long tenantId, Pageable pageable);
     long countByTenantId(Long tenantId);
