@@ -148,6 +148,7 @@ Các adapter Shopee/TikTok, Python AI, giao diện Storefront/Merchant/Customer/
 
 ## Tài liệu
 
+- [Hướng dẫn thành viên mới clone và chạy local](docs/team-local-setup.md)
 - [Kiến trúc và luồng dữ liệu](docs/architecture.md)
 - [Quyết định sản phẩm](docs/project-context.md)
 - [Luồng CSKH và loyalty](docs/SmartOmni_Additional_Flows_Detailed.md)

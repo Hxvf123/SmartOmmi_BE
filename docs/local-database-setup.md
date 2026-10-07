@@ -22,7 +22,7 @@ docker compose version
 
 Không copy `.env` chứa secret của thành viên khác. Git chỉ lưu `.env.example`; `.env` đã được bỏ qua bởi `.gitignore`.
 
-Trên Windows, chạy đoạn PowerShell sau để tạo `.env` từ mẫu và thay cả 6 placeholder bằng secret ngẫu nhiên. Đoạn này dừng nếu `.env` đã tồn tại.
+Trên Windows, chạy đoạn PowerShell sau để tạo `.env` từ mẫu và thay cả 7 placeholder bằng secret ngẫu nhiên. Đoạn này dừng nếu `.env` đã tồn tại.
 
 ```powershell
 if (Test-Path .env) {
@@ -38,7 +38,8 @@ try {
         'DB_APP_PASSWORD',
         'RABBITMQ_PASSWORD',
         'JWT_SECRET',
-        'SMARTOMNI_ENCRYPTION_AES_KEY'
+        'SMARTOMNI_ENCRYPTION_AES_KEY',
+        'INTERNAL_JOB_TOKEN'
     )) {
         $secretBytes = New-Object byte[] 32
         $randomGenerator.GetBytes($secretBytes)
@@ -69,6 +70,7 @@ Trên hệ điều hành khác, copy `.env.example` thành `.env` và thay tất
 | `RABBITMQ_PASSWORD` | Mật khẩu RabbitMQ cho Order và Integration |
 | `JWT_SECRET` | Secret JWT chung cho các service trên máy này |
 | `SMARTOMNI_ENCRYPTION_AES_KEY` | Khóa mã hóa credential của Integration |
+| `INTERNAL_JOB_TOKEN` | Token dùng giữa Quartz worker và các endpoint job nội bộ |
 
 Kiểm tra cấu hình mà không in secret:
 
@@ -111,7 +113,7 @@ docker compose exec -T postgres psql -U postgres -d smartomni -c "SELECT count(*
 
 Với phiên bản repository hiện tại, kết quả mong đợi:
 
-- 11 container đang chạy; PostgreSQL và RabbitMQ báo `healthy`.
+- 12 container đang chạy; PostgreSQL, RabbitMQ và Nginx báo `healthy`.
 - History có V1–V8, tất cả `success = t`.
 - Có 44 bảng nghiệp vụ, không tính `flyway_schema_history`.
 - Log các ứng dụng có `Started ...Application`, không có lỗi khởi động hoặc Hibernate validation.
