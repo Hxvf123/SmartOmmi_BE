@@ -77,4 +77,25 @@ public class JwtTokenProvider {
         Object tenantId = parseClaims(token).get("tenantId");
         return tenantId == null ? null : Long.valueOf(tenantId.toString());
     }
+
+    public Date getExpiration(String token) {
+        return parseClaims(token).getExpiration();
+    }
+
+    public long getRemainingExpirationMs(String token) {
+        try {
+            Date expiration = getExpiration(token);
+            if (expiration == null) {
+                return 0;
+            }
+            long remaining = expiration.getTime() - System.currentTimeMillis();
+            return Math.max(remaining, 0);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    public long getExpirationMs() {
+        return expirationMs;
+    }
 }
