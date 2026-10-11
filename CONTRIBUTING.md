@@ -16,7 +16,7 @@ docs(readme): cập nhật hướng dẫn chạy local
 
 ## Pull Request checklist
 - [ ] Code build thành công: `mvn clean install`
-- [ ] Đã viết/](cập nhật unit test cho logic mới
+- [ ] Đã viết/cập nhật unit test cho logic mới
 - [ ] Không hardcode `tenant_id`; đã dùng `TenantContext`
 - [ ] Đã cập nhật `README.md`/`docs/` nếu thay đổi kiến trúc hoặc API
 - [ ] Không commit file `.env`, secret, credentials
@@ -30,6 +30,8 @@ docs(readme): cập nhật hướng dẫn chạy local
 
 ## Review
 Mỗi PR cần tối thiểu 1 approval từ thành viên khác trước khi merge vào `develop`.
+
+Các bước tạo nhánh, kiểm tra và mở PR được mô tả trong [quy trình làm việc với GitHub](docs/github-workflow.md).
 
 ## Database migration
 - Thay đổi schema bằng file `V<n>__description.sql` trong `smartomni-db-migrations/src/main/resources/db/migration/`; không sửa migration đã áp dụng.
