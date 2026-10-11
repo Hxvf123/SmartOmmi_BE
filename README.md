@@ -140,6 +140,45 @@ Python FastAPI chạy riêng. Java AI Service đọc `PYTHON_AI_BASE_URL`; khi P
 
 Kiểm tra Java và migration bằng `mvn -B clean verify`. Hướng dẫn chi tiết: [thiết lập database local](docs/local-database-setup.md) và [database migrations](docs/database-migrations.md).
 
+## Quy trình làm việc với GitHub
+
+Team phát triển trên `develop` và giữ `main` ở trạng thái có thể triển khai. Mỗi công việc có nhánh riêng: `feature/<service>-<mo-ta-ngan>` cho tính năng hoặc `fix/<service>-<mo-ta-ngan>` cho sửa lỗi. Luồng merge là:
+
+```text
+feature/* hoặc fix/* → Pull Request vào develop → Pull Request phát hành vào main
+```
+
+### 1. Tạo nhánh công việc
+
+Từ thư mục gốc repository, lấy `develop` mới nhất rồi tạo nhánh theo công việc:
+
+```powershell
+git fetch origin
+git switch develop
+git pull --ff-only origin develop
+git switch -c feature/order-webhook-idempotency
+```
+
+Nếu vừa clone và chưa có nhánh `develop` cục bộ, dùng `git switch --track origin/develop` thay cho `git switch develop`. Hoàn tất hoặc lưu thay đổi đang làm trước khi chuyển nhánh.
+
+### 2. Sửa code, kiểm tra và đẩy nhánh
+
+Giữ mỗi PR tập trung vào một công việc. Thêm/cập nhật test và tài liệu tương ứng; thay đổi schema phải có migration mới, không sửa migration đã áp dụng. Trước khi commit, xem lại file được stage để tránh đưa `.env` hoặc secret vào Git. Commit theo Conventional Commits, ví dụ `feat(order): add webhook idempotency`.
+
+```powershell
+mvn -B clean verify
+git status --short --branch
+git push -u origin feature/order-webhook-idempotency
+```
+
+### 3. Mở và review Pull Request
+
+Trên GitHub, mở PR với **base `develop`** và **compare là nhánh công việc**. Mô tả mục tiêu, thay đổi chính, kết quả kiểm thử, ảnh hưởng tới API/migration và issue liên quan nếu có. Cần ít nhất **một thành viên khác approval**, xử lý góp ý và chờ CI đạt trước khi merge. CI hiện chạy `mvn -B clean verify` cho PR vào `develop` và `main`.
+
+Khi team chuẩn bị phát hành, mở PR **`develop` → `main`**, xem lại toàn bộ diff, CI và review trước khi merge. Không đẩy commit trực tiếp lên `main` hoặc `develop`.
+
+Các bước chi tiết và gợi ý cấu hình bảo vệ nhánh nằm trong [quy trình GitHub](docs/github-workflow.md); quy ước commit và checklist PR nằm trong [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Trạng thái triển khai
 
 Repo hiện có khung 7 domain service Spring Boot, Nginx Gateway, Quartz worker, Flyway/RLS, Docker Compose và kiểm thử migration/khởi động. Một số controller, entity và luồng nền đã có mã khởi đầu; **đây chưa phải toàn bộ nghiệp vụ hoàn chỉnh**.
@@ -148,6 +187,7 @@ Các adapter Shopee/TikTok, Python AI, giao diện Storefront/Merchant/Customer/
 
 ## Tài liệu
 
+- [Quy trình làm việc với GitHub](docs/github-workflow.md)
 - [Hướng dẫn thành viên mới clone và chạy local](docs/team-local-setup.md)
 - [Kiến trúc và luồng dữ liệu](docs/architecture.md)
 - [Quyết định sản phẩm](docs/project-context.md)
