@@ -58,6 +58,9 @@ class AuthServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private UserLoginAttemptService userLoginAttemptService;
+
     private AuthServiceImpl authService;
 
     private User sampleUser;
@@ -74,7 +77,8 @@ class AuthServiceTest {
                 passwordEncoder,
                 jwtTokenProvider,
                 entityManager,
-                stringRedisTemplate
+                stringRedisTemplate,
+                userLoginAttemptService
         );
         ReflectionTestUtils.setField(authService, "expirationMs", 86400000L);
         ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
@@ -123,6 +127,7 @@ class AuthServiceTest {
         assertEquals(0, sampleUser.getFailedLoginAttempts());
         assertNull(sampleUser.getLockedUntil());
         verify(userRepository, times(1)).save(sampleUser);
+        verify(userLoginAttemptService, times(1)).resetFailedAttempts(1L);
     }
 
     @Test
@@ -144,6 +149,7 @@ class AuthServiceTest {
         assertNotNull(response);
         assertEquals("mocked.jwt.token", response.getAccessToken());
         assertEquals(100L, response.getUserInfo().getTenantId());
+        verify(userLoginAttemptService, times(1)).resetFailedAttempts(1L);
     }
 
     @Test
@@ -159,10 +165,11 @@ class AuthServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> authService.login(request));
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getHttpStatus());
         assertEquals("INVALID_CREDENTIALS", ex.getErrorCode());
+        verify(userLoginAttemptService, never()).recordFailedAttempt(any());
     }
 
     @Test
-    @DisplayName("Đăng nhập thất bại do sai mật khẩu và tăng số lần failedLoginAttempts")
+    @DisplayName("Đăng nhập thất bại do sai mật khẩu và gọi recordFailedAttempt")
     void testLogin_Failure_WrongPassword() {
         LoginRequest request = LoginRequest.builder()
                 .email("admin@smartshop.vn")
@@ -176,12 +183,11 @@ class AuthServiceTest {
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getHttpStatus());
         assertEquals("INVALID_CREDENTIALS", ex.getErrorCode());
 
-        assertEquals(1, sampleUser.getFailedLoginAttempts());
-        verify(userRepository, times(1)).save(sampleUser);
+        verify(userLoginAttemptService, times(1)).recordFailedAttempt(1L);
     }
 
     @Test
-    @DisplayName("Đăng nhập thất bại do tài khoản bị tạm khóa sau 5 lần sai mật khẩu")
+    @DisplayName("Đăng nhập thất bại do sai mật khẩu kích hoạt recordFailedAttempt")
     void testLogin_Failure_AccountLocked_After5Attempts() {
         sampleUser.setFailedLoginAttempts(4);
         LoginRequest request = LoginRequest.builder()
@@ -194,9 +200,7 @@ class AuthServiceTest {
 
         assertThrows(BusinessException.class, () -> authService.login(request));
 
-        assertEquals(5, sampleUser.getFailedLoginAttempts());
-        assertNotNull(sampleUser.getLockedUntil());
-        assertTrue(sampleUser.getLockedUntil().isAfter(Instant.now()));
+        verify(userLoginAttemptService, times(1)).recordFailedAttempt(1L);
     }
 
     @Test

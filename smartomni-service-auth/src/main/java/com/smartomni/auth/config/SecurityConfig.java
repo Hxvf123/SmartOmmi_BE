@@ -1,6 +1,6 @@
 package com.smartomni.auth.config;
 
-import com.smartomni.auth.service.impl.AuthServiceImpl;
+import com.smartomni.common.constant.AppConstants;
 import com.smartomni.common.security.JwtAuthenticationFilter;
 import com.smartomni.common.security.JwtTokenProvider;
 import com.smartomni.common.security.TokenBlacklistValidator;
@@ -35,7 +35,7 @@ public class SecurityConfig {
     public TokenBlacklistValidator tokenBlacklistValidator(StringRedisTemplate stringRedisTemplate) {
         return token -> {
             boolean blacklisted = Boolean.TRUE.equals(
-                    stringRedisTemplate.hasKey(AuthServiceImpl.REDIS_PREFIX_BLACKLIST + token));
+                    stringRedisTemplate.hasKey(AppConstants.REDIS_PREFIX_BLACKLIST + token));
             if (blacklisted) {
                 log.debug("Token is blacklisted in Redis, rejecting authentication");
             }

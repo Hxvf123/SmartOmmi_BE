@@ -10,6 +10,7 @@ import com.smartomni.auth.repository.TenantLookupRepository;
 import com.smartomni.auth.repository.TenantLookupRepository.TenantLookup;
 import com.smartomni.auth.repository.UserRepository;
 import com.smartomni.auth.service.AuthService;
+import com.smartomni.auth.service.UserLoginAttemptService;
 import com.smartomni.common.constant.AppConstants;
 import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.exception.InvalidTokenException;
@@ -46,7 +47,7 @@ public class AuthServiceImpl implements AuthService {
 
     public static final String REDIS_PREFIX_REFRESH = "auth:refresh_token:";
     public static final String REDIS_PREFIX_USER_REFRESH = "auth:user_refresh:";
-    public static final String REDIS_PREFIX_BLACKLIST = "auth:blacklist:";
+    public static final String REDIS_PREFIX_BLACKLIST = AppConstants.REDIS_PREFIX_BLACKLIST;
 
     private final UserRepository userRepository;
     private final TenantLookupRepository tenantLookupRepository;
@@ -55,6 +56,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EntityManager entityManager;
     private final StringRedisTemplate stringRedisTemplate;
+    private final UserLoginAttemptService userLoginAttemptService;
 
     @Value("${smartomni.jwt.expiration-ms:86400000}")
     private long expirationMs;
@@ -88,11 +90,14 @@ public class AuthServiceImpl implements AuthService {
         // Xác thực mật khẩu với BCrypt
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             log.warn("Password mismatch for email: {}", request.getEmail());
-            handleFailedLogin(user);
+            userLoginAttemptService.recordFailedAttempt(user.getId());
             throw new BusinessException("Email hoặc mật khẩu không chính xác", HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
         }
 
         // FR-003: Cơ chế Multi-tenancy & kiểm tra tính hợp lệ của Tenant / Subdomain
+        // Thiết lập context RLS phù hợp để bypass rào cản RLS của bảng tenants cho request chưa xác thực
+        setRlsContext("app.user_role", "super_admin");
+
         String resolvedSubdomain = null;
         if (request.getSubdomain() != null && !request.getSubdomain().trim().isEmpty()) {
             String targetSubdomain = request.getSubdomain().trim();
@@ -141,6 +146,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Đăng nhập thành công -> Reset số lần đăng nhập sai
+        userLoginAttemptService.resetFailedAttempts(user.getId());
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
         userRepository.save(user);
@@ -199,6 +205,7 @@ public class AuthServiceImpl implements AuthService {
 
         String resolvedSubdomain = null;
         if (user.getTenantId() != null) {
+            setRlsContext("app.user_role", "super_admin");
             Optional<TenantLookup> userTenant = tenantLookupRepository.findById(user.getTenantId());
             if (userTenant.isPresent()) {
                 TenantLookup tenant = userTenant.get();
@@ -293,16 +300,6 @@ public class AuthServiceImpl implements AuthService {
                 TimeUnit.MILLISECONDS
         );
         return newRefreshToken;
-    }
-
-    private void handleFailedLogin(User user) {
-        int attempts = user.getFailedLoginAttempts() == null ? 1 : user.getFailedLoginAttempts() + 1;
-        user.setFailedLoginAttempts(attempts);
-        if (attempts >= MAX_FAILED_ATTEMPTS) {
-            user.setLockedUntil(Instant.now().plus(LOCK_DURATION_MINUTES, ChronoUnit.MINUTES));
-            log.warn("User id {} has reached {} failed attempts, locked until {}", user.getId(), attempts, user.getLockedUntil());
-        }
-        userRepository.save(user);
     }
 
     @Override

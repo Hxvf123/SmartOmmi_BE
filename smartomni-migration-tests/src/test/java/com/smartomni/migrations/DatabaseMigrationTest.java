@@ -3,6 +3,7 @@ package com.smartomni.migrations;
 import com.smartomni.auth.dto.LoginRequest;
 import com.smartomni.auth.service.AuthService;
 import com.smartomni.catalog.entity.Product;
+import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.persistence.RlsSession;
 import com.smartomni.common.security.JwtTokenProvider;
 import com.smartomni.common.tenant.TenantContext;
@@ -115,7 +116,7 @@ class DatabaseMigrationTest {
                 "--spring.datasource.url=" + url,
                 "--spring.datasource.username=smartomni_app",
                 "--spring.datasource.password=" + TEST_PASSWORD,
-                "--spring.datasource.hikari.maximum-pool-size=1",
+                "--spring.datasource.hikari.maximum-pool-size=5",
                 "--spring.flyway.url=" + url,
                 "--spring.flyway.user=smartomni_migrator",
                 "--spring.flyway.password=" + TEST_PASSWORD,
@@ -273,6 +274,84 @@ class DatabaseMigrationTest {
             assertNotNull(auth.login(request));
             String superToken = context.getBean(JwtTokenProvider.class).generateToken(99L, "SUPER_ADMIN", null);
             assertNull(context.getBean(JwtTokenProvider.class).getTenantId(superToken));
+        }
+    }
+
+    @Test
+    void failedLoginAttemptsPersistedDespiteLoginException() throws Exception {
+        String url = newDatabase();
+        try (var context = boot(url)) {
+            String hash = context.getBean(PasswordEncoder.class).encode("correct-password");
+            try (Connection admin = connect(url, "postgres")) {
+                execute(admin, "INSERT INTO tenants(name,subdomain) VALUES ('Store','store')");
+                try (var statement = admin.prepareStatement(
+                        "INSERT INTO users(tenant_id,email,password_hash,role,failed_login_attempts) VALUES (1,'user@store.test',?,'admin',0)")) {
+                    statement.setString(1, hash);
+                    statement.executeUpdate();
+                }
+            }
+            AuthService auth = context.getBean(AuthService.class);
+            LoginRequest wrongRequest = new LoginRequest();
+            wrongRequest.setEmail("user@store.test");
+            wrongRequest.setPassword("wrong-password");
+
+            // Lần 1: Nhập sai mật khẩu -> ném BusinessException
+            assertThrows(BusinessException.class, () -> auth.login(wrongRequest));
+
+            // Kiểm tra DB: failed_login_attempts vẫn được commit là 1 dù login() bị rollback
+            try (Connection admin = connect(url, "postgres")) {
+                assertEquals(1, count(admin, "SELECT failed_login_attempts FROM users WHERE email='user@store.test'"));
+            }
+
+            // Nhập sai thêm 4 lần (tổng cộng 5 lần)
+            for (int i = 2; i <= 5; i++) {
+                assertThrows(BusinessException.class, () -> auth.login(wrongRequest));
+            }
+
+            // Kiểm tra DB: đạt 5 lần và locked_until đã được set
+            try (Connection admin = connect(url, "postgres")) {
+                assertEquals(5, count(admin, "SELECT failed_login_attempts FROM users WHERE email='user@store.test'"));
+                assertEquals(1, count(admin, "SELECT count(*) FROM users WHERE email='user@store.test' AND locked_until > now()"));
+            }
+
+            // Lần 6: Tài khoản bị khóa -> ném BusinessException ACCOUNT_TEMP_LOCKED
+            var ex = assertThrows(BusinessException.class, () -> auth.login(wrongRequest));
+            assertEquals("ACCOUNT_TEMP_LOCKED", ex.getErrorCode());
+        }
+    }
+
+    @Test
+    void tenantLookupWithSubdomainWorksUnderRlsAndChecksStatus() throws Exception {
+        String url = newDatabase();
+        try (var context = boot(url)) {
+            String hash = context.getBean(PasswordEncoder.class).encode("password123");
+            try (Connection admin = connect(url, "postgres")) {
+                execute(admin, "INSERT INTO tenants(name,subdomain,status) VALUES ('Shop Sub','shopsub','active')");
+                try (var statement = admin.prepareStatement(
+                        "INSERT INTO users(tenant_id,email,password_hash,role) VALUES (1,'owner@shopsub.test',?,'admin')")) {
+                    statement.setString(1, hash);
+                    statement.executeUpdate();
+                }
+            }
+            AuthService auth = context.getBean(AuthService.class);
+            LoginRequest request = new LoginRequest();
+            request.setEmail("owner@shopsub.test");
+            request.setPassword("password123");
+            request.setSubdomain("shopsub");
+
+            // Đăng nhập thành công với subdomain mà không bị RLS chặn
+            var response = auth.login(request);
+            assertNotNull(response);
+            assertEquals("shopsub", response.getUserInfo().getSubdomain());
+
+            // Khóa tenant trong database
+            try (Connection admin = connect(url, "postgres")) {
+                execute(admin, "UPDATE tenants SET status='locked', locked_reason='Overdue billing' WHERE subdomain='shopsub'");
+            }
+
+            // Đăng nhập lại với subdomain -> Phát hiện tenant bị khóa và throw TENANT_LOCKED
+            var ex = assertThrows(BusinessException.class, () -> auth.login(request));
+            assertEquals("TENANT_LOCKED", ex.getErrorCode());
         }
     }
 
