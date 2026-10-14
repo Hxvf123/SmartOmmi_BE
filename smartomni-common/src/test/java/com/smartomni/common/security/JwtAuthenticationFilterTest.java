@@ -85,6 +85,35 @@ class JwtAuthenticationFilterTest {
         assertEquals(100L, TenantContext.getTenantId());
     }
 
+    @Mock
+    private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
+    @Test
+    @DisplayName("Từ chối request với HTTP 403 khi Tenant bị khóa trong Redis (auth:tenant_locked:<tenantId>)")
+    void testDoFilter_TenantIsLocked_RejectsWithHttp403Forbidden() throws Exception {
+        String token = "valid.tenant.jwt.token";
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer " + token);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        when(tokenBlacklistValidator.isBlacklisted(token)).thenReturn(false);
+        when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+        when(jwtTokenProvider.getUserId(token)).thenReturn(10L);
+        when(jwtTokenProvider.getRole(token)).thenReturn("ADMIN");
+        when(jwtTokenProvider.getTenantId(token)).thenReturn(100L);
+        when(jwtTokenProvider.getSubdomain(token)).thenReturn("locked-tenant");
+        when(stringRedisTemplate.hasKey("auth:tenant_locked:100")).thenReturn(true);
+
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplate);
+        filter.doFilter(request, response, filterChain);
+
+        // Không cho phép đi tiếp vào filter chain
+        verify(filterChain, never()).doFilter(request, response);
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getContentAsString().contains("TENANT_LOCKED"));
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
     @Test
     @DisplayName("Không xác thực khi Authorization Header không có tiền tố Bearer")
     void testDoFilter_NoBearerHeader_PassesThroughWithoutAuth() throws Exception {

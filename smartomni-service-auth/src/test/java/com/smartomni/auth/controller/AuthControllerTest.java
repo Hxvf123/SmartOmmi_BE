@@ -127,4 +127,13 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
+
+    @Test
+    @DisplayName("POST /api/v1/auth/internal/tenants/{tenantId}/evict trả về HTTP 200")
+    void testEvictTenantSessions_Success() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/internal/tenants/100/evict"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Đã thu hồi toàn bộ phiên của Tenant 100"));
+    }
 }

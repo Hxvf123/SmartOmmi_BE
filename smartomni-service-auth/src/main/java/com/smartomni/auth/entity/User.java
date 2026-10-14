@@ -59,7 +59,9 @@ public class User extends BaseTenantEntity {
     public enum UserRole {
         SUPER_ADMIN,
         ADMIN,
-        MANAGER
+        TENANT_ADMIN,
+        MANAGER,
+        CUSTOMER
     }
 
     public enum UserStatus {

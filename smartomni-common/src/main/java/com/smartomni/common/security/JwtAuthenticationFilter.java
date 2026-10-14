@@ -22,14 +22,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenBlacklistValidator tokenBlacklistValidator;
+    private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
-        this(jwtTokenProvider, null);
+        this(jwtTokenProvider, null, null);
     }
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, TokenBlacklistValidator tokenBlacklistValidator) {
+        this(jwtTokenProvider, tokenBlacklistValidator, null);
+    }
+
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
+                                   TokenBlacklistValidator tokenBlacklistValidator,
+                                   org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.tokenBlacklistValidator = tokenBlacklistValidator;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     @Override
@@ -51,10 +59,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Long userId = jwtTokenProvider.getUserId(token);
                 String role = jwtTokenProvider.getRole(token);
                 Long tenantId = jwtTokenProvider.getTenantId(token);
+                String subdomain = jwtTokenProvider.getSubdomain(token);
+
+                // Kiểm tra cờ Redis auth:tenant_locked:<tenantId>
+                if (tenantId != null && !AppConstants.ROLE_SUPER_ADMIN.equalsIgnoreCase(role) && isTenantLocked(tenantId)) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"success\":false,\"message\":\"Tenant đã bị khóa\",\"code\":\"TENANT_LOCKED\"}");
+                    return;
+                }
 
                 TenantContext.setCurrentUserId(userId);
                 TenantContext.setCurrentRole(role);
                 TenantContext.setTenantId(tenantId);
+                TenantContext.setCurrentSubdomain(subdomain);
 
                 var authentication = new UsernamePasswordAuthenticationToken(
                         userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
@@ -63,5 +81,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isTenantLocked(Long tenantId) {
+        if (stringRedisTemplate == null || tenantId == null) {
+            return false;
+        }
+        try {
+            return Boolean.TRUE.equals(stringRedisTemplate.hasKey(AppConstants.REDIS_PREFIX_TENANT_LOCKED + tenantId));
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
