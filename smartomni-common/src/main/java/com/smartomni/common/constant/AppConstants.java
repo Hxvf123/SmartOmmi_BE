@@ -21,4 +21,7 @@ public final class AppConstants {
     public static final String FEATURE_DEMAND_FORECASTING = "demand_forecasting";
     public static final String FEATURE_RECOMMENDATION_ENGINE = "recommendation_engine";
     public static final String FEATURE_PRIORITY_SUPPORT = "priority_support";
+
+    // Redis Key Prefixes
+    public static final String REDIS_PREFIX_BLACKLIST = "auth:blacklist:";
 }
