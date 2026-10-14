@@ -109,7 +109,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("admin@smartshop.vn")).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("Password123@", sampleUser.getPasswordHash())).thenReturn(true);
         when(tenantLookupRepository.findBySubdomain("smartshop")).thenReturn(Optional.of(sampleTenant));
-        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L)).thenReturn("mocked.jwt.token");
+        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop")).thenReturn("mocked.jwt.token");
 
         AuthResponse response = authService.login(request);
 
@@ -142,7 +142,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("admin@smartshop.vn")).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("Password123@", sampleUser.getPasswordHash())).thenReturn(true);
         when(tenantLookupRepository.findById(100L)).thenReturn(Optional.of(sampleTenant));
-        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L)).thenReturn("mocked.jwt.token");
+        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop")).thenReturn("mocked.jwt.token");
 
         AuthResponse response = authService.login(request);
 
@@ -300,7 +300,7 @@ class AuthServiceTest {
         when(valueOperations.get(AuthServiceImpl.REDIS_PREFIX_REFRESH + "valid-refresh-token")).thenReturn("1");
         when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
         when(tenantLookupRepository.findById(100L)).thenReturn(Optional.of(sampleTenant));
-        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L)).thenReturn("new.jwt.access.token");
+        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop")).thenReturn("new.jwt.access.token");
 
         AuthResponse response = authService.refreshToken(request);
 
@@ -343,5 +343,18 @@ class AuthServiceTest {
         );
         verify(stringRedisTemplate, times(1)).delete(AuthServiceImpl.REDIS_PREFIX_REFRESH + "user-refresh-token");
         verify(stringRedisTemplate, times(1)).delete(AuthServiceImpl.REDIS_PREFIX_USER_REFRESH + 1L);
+    }
+
+    @Test
+    @DisplayName("evictTenantSessions: Đặt cờ Redis auth:tenant_locked và thu hồi refresh tokens của mọi user thuộc tenant")
+    void testEvictTenantSessions_Success() {
+        when(userRepository.findByTenantId(100L)).thenReturn(java.util.List.of(sampleUser));
+        when(valueOperations.get(AuthServiceImpl.REDIS_PREFIX_USER_REFRESH + 1L)).thenReturn("refresh-token-1");
+
+        authService.evictTenantSessions(100L);
+
+        verify(valueOperations).set("auth:tenant_locked:100", "LOCKED", 24L, java.util.concurrent.TimeUnit.HOURS);
+        verify(stringRedisTemplate).delete(AuthServiceImpl.REDIS_PREFIX_REFRESH + "refresh-token-1");
+        verify(stringRedisTemplate).delete(AuthServiceImpl.REDIS_PREFIX_USER_REFRESH + 1L);
     }
 }

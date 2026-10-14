@@ -75,4 +75,14 @@ public class AuthController {
         authService.resetPassword(request.getToken(), request.getNewPassword());
         return ApiResponse.success("Đặt lại mật khẩu thành công", null);
     }
+
+    /**
+     * POST /api/v1/auth/internal/tenants/{tenantId}/evict
+     * Thu hồi toàn bộ phiên đăng nhập của Tenant bị khóa (kích hoạt Tenant Eviction).
+     */
+    @PostMapping("/internal/tenants/{tenantId}/evict")
+    public ApiResponse<Void> evictTenantSessions(@org.springframework.web.bind.annotation.PathVariable Long tenantId) {
+        authService.evictTenantSessions(tenantId);
+        return ApiResponse.success("Đã thu hồi toàn bộ phiên của Tenant " + tenantId, null);
+    }
 }

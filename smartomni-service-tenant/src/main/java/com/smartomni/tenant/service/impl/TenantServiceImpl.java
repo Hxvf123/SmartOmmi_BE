@@ -39,6 +39,7 @@ public class TenantServiceImpl implements TenantService {
     private final TenantRepository tenantRepository;
     private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final PlanFeatureFlagRepository featureFlagRepository;
+    private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     // In-memory persistent cache for tenant storefront configurations
     private final Map<Long, StorefrontConfigRequest> storefrontConfigMap = new ConcurrentHashMap<>();
@@ -224,6 +225,14 @@ public class TenantServiceImpl implements TenantService {
         tenant.setLockedBy(lockedByUserId);
         tenant.setLockedAt(Instant.now());
         tenantRepository.save(tenant);
+
+        // Ghi cờ auth:tenant_locked:<tenantId> lên Redis để lập tức vô hiệu hóa mọi phiên truy cập của Tenant
+        if (stringRedisTemplate != null) {
+            stringRedisTemplate.opsForValue().set(
+                    com.smartomni.common.constant.AppConstants.REDIS_PREFIX_TENANT_LOCKED + tenantId,
+                    "LOCKED"
+            );
+        }
     }
 
     @Override
@@ -235,6 +244,11 @@ public class TenantServiceImpl implements TenantService {
         tenant.setLockedBy(null);
         tenant.setLockedAt(null);
         tenantRepository.save(tenant);
+
+        // Xóa cờ auth:tenant_locked:<tenantId> khỏi Redis
+        if (stringRedisTemplate != null) {
+            stringRedisTemplate.delete(com.smartomni.common.constant.AppConstants.REDIS_PREFIX_TENANT_LOCKED + tenantId);
+        }
     }
 
     @Override

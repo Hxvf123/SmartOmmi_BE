@@ -151,8 +151,8 @@ public class AuthServiceImpl implements AuthService {
         user.setLockedUntil(null);
         userRepository.save(user);
 
-        // Sinh JWT Access Token chứa user_id, role, tenant_id
-        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId());
+        // Sinh JWT Access Token chứa user_id, role, tenant_id, subdomain
+        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain);
 
         // Sinh và lưu Refresh Token vào Redis
         String refreshToken = storeRefreshTokenInRedis(user.getId());
@@ -217,7 +217,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Cấp Access Token mới
-        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId());
+        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain);
 
         // Rotate Refresh Token: Xóa token cũ và lưu token mới
         stringRedisTemplate.delete(REDIS_PREFIX_REFRESH + refreshToken);
@@ -339,6 +339,35 @@ public class AuthServiceImpl implements AuthService {
         resetToken.setUsed(true);
         resetTokenRepository.save(resetToken);
         log.info("Successfully reset password for user id: {}", user.getId());
+    }
+
+    @Override
+    @Transactional
+    public void evictTenantSessions(Long tenantId) {
+        if (tenantId == null) {
+            return;
+        }
+        log.info("Evicting all sessions and refresh tokens for tenant: {}", tenantId);
+
+        // 1. Ghi cờ auth:tenant_locked:<tenantId> lên Redis
+        stringRedisTemplate.opsForValue().set(
+                AppConstants.REDIS_PREFIX_TENANT_LOCKED + tenantId,
+                "LOCKED",
+                24,
+                TimeUnit.HOURS
+        );
+
+        // 2. Thu hồi toàn bộ Refresh Tokens của mọi người dùng thuộc Tenant đó
+        setRlsContext("app.user_role", "super_admin");
+        var users = userRepository.findByTenantId(tenantId);
+        for (User user : users) {
+            String existingRefreshToken = stringRedisTemplate.opsForValue().get(REDIS_PREFIX_USER_REFRESH + user.getId());
+            if (existingRefreshToken != null) {
+                stringRedisTemplate.delete(REDIS_PREFIX_REFRESH + existingRefreshToken);
+            }
+            stringRedisTemplate.delete(REDIS_PREFIX_USER_REFRESH + user.getId());
+        }
+        log.info("Successfully evicted sessions for {} users belonging to tenant: {}", users.size(), tenantId);
     }
 
     private void setRlsContext(String name, String value) {

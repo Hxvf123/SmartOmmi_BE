@@ -42,6 +42,12 @@ class TenantServiceTest {
     @Mock
     private PlanFeatureFlagRepository featureFlagRepository;
 
+    @Mock
+    private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
+    @Mock
+    private org.springframework.data.redis.core.ValueOperations<String, String> valueOperations;
+
     @InjectMocks
     private TenantServiceImpl tenantService;
 
@@ -288,5 +294,40 @@ class TenantServiceTest {
                 .build();
 
         assertThrows(ResourceNotFoundException.class, () -> tenantService.updateStorefront(999L, request));
+    }
+
+    @Test
+    @DisplayName("lockTenant: Cập nhật status LOCKED và đặt cờ auth:tenant_locked trên Redis")
+    void testLockTenant_Success() {
+        Tenant tenant = new Tenant();
+        tenant.setId(10L);
+        tenant.setStatus(Tenant.TenantStatus.ACTIVE);
+
+        when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
+        when(tenantRepository.save(any(Tenant.class))).thenAnswer(i -> i.getArgument(0));
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        tenantService.lockTenant(10L, "Vi phạm điều khoản", 1L);
+
+        assertEquals(Tenant.TenantStatus.LOCKED, tenant.getStatus());
+        assertEquals("Vi phạm điều khoản", tenant.getLockedReason());
+        verify(valueOperations).set("auth:tenant_locked:10", "LOCKED");
+    }
+
+    @Test
+    @DisplayName("unlockTenant: Cập nhật status ACTIVE và xóa cờ auth:tenant_locked khỏi Redis")
+    void testUnlockTenant_Success() {
+        Tenant tenant = new Tenant();
+        tenant.setId(10L);
+        tenant.setStatus(Tenant.TenantStatus.LOCKED);
+
+        when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
+        when(tenantRepository.save(any(Tenant.class))).thenAnswer(i -> i.getArgument(0));
+
+        tenantService.unlockTenant(10L);
+
+        assertEquals(Tenant.TenantStatus.ACTIVE, tenant.getStatus());
+        assertNull(tenant.getLockedReason());
+        verify(stringRedisTemplate).delete("auth:tenant_locked:10");
     }
 }

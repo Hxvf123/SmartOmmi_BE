@@ -46,4 +46,13 @@ public interface AuthService {
      * @param newPassword mật khẩu mới chưa mã hóa
      */
     void resetPassword(String token, String newPassword);
+
+    /**
+     * Vô hiệu hóa toàn bộ phiên đăng nhập của Tenant:
+     * - Đặt cờ auth:tenant_locked:<tenantId> trong Redis
+     * - Thu hồi toàn bộ Refresh Tokens của mọi người dùng thuộc Tenant đó.
+     *
+     * @param tenantId ID của Tenant bị khóa
+     */
+    void evictTenantSessions(Long tenantId);
 }
