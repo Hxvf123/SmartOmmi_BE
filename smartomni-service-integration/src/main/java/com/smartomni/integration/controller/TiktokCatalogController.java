@@ -23,7 +23,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping({"/api/v1/tiktok/products", "/api/tiktok/products", "/api/marketplace-connections/tiktok-shop"})
+@RequestMapping("/api/v1/tiktok/products")
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'MANAGER', 'STAFF')")
 public class TiktokCatalogController {
 

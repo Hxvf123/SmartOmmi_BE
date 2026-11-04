@@ -38,16 +38,10 @@ public class SecurityConfig {
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(
                         "/api/v1/tenants/check-subdomain",
-                        "/api/tenants/check-subdomain",
                         "/api/v1/tenants/onboarding",
-                        "/api/tenants/onboarding",
-                        "/api/v1/tenants/register/onboarding",
-                        "/api/tenants/register/onboarding",
                         "/api/v1/tenants/public/**",
-                        "/api/tenants/public/**",
                         "/actuator/**"
                 ).permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/tenants", "/api/tenants").permitAll()
                 .anyRequest().authenticated()
             );
         return http.build();

@@ -171,7 +171,7 @@ class TenantControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/tenants: Thành công khi gọi trực tiếp endpoint gốc")
+    @DisplayName("POST /api/v1/tenants/onboarding: Thành công khi onboarding tenant mới")
     void testCreateTenantRoot_Success() throws Exception {
         TenantOnboardingRequest request = TenantOnboardingRequest.builder()
                 .companyName("Direct Store")
@@ -195,7 +195,7 @@ class TenantControllerTest {
 
         when(tenantService.onboardTenant(any(TenantOnboardingRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/v1/tenants")
+        mockMvc.perform(post("/api/v1/tenants/onboarding")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -206,7 +206,7 @@ class TenantControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/tenants: Báo lỗi 409 Conflict khi email admin đã tồn tại")
+    @DisplayName("POST /api/v1/tenants/onboarding: Báo lỗi 409 Conflict khi email admin đã tồn tại")
     void testCreateTenant_DuplicateAdminEmail_ThrowsConflict() throws Exception {
         TenantOnboardingRequest request = TenantOnboardingRequest.builder()
                 .companyName("Dup Shop")
@@ -218,7 +218,7 @@ class TenantControllerTest {
         when(tenantService.onboardTenant(any(TenantOnboardingRequest.class)))
                 .thenThrow(new BusinessException("Email quản trị viên đã tồn tại trong hệ thống", HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS"));
 
-        mockMvc.perform(post("/api/v1/tenants")
+        mockMvc.perform(post("/api/v1/tenants/onboarding")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -259,7 +259,7 @@ class TenantControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/tenants/register/onboarding: Endpoint alias hoạt động thành công")
+    @DisplayName("POST /api/v1/tenants/onboarding: Onboarding với role TENANT_ADMIN thành công")
     void testRegisterOnboardingAlias_Success() throws Exception {
         TenantOnboardingRequest request = TenantOnboardingRequest.builder()
                 .companyName("Alias Store")
@@ -278,7 +278,7 @@ class TenantControllerTest {
 
         when(tenantService.onboardTenant(any(TenantOnboardingRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/v1/tenants/register/onboarding")
+        mockMvc.perform(post("/api/v1/tenants/onboarding")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -287,7 +287,7 @@ class TenantControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/tenants: Thất bại khi adminEmail bị để trống (400 Bad Request)")
+    @DisplayName("POST /api/v1/tenants/onboarding: Thất bại khi adminEmail bị để trống (400 Bad Request)")
     void testOnboarding_ValidationFailure_BlankAdminEmail() throws Exception {
         TenantOnboardingRequest request = TenantOnboardingRequest.builder()
                 .companyName("Store")
@@ -295,14 +295,14 @@ class TenantControllerTest {
                 .adminEmail("") // Blank
                 .build();
 
-        mockMvc.perform(post("/api/v1/tenants")
+        mockMvc.perform(post("/api/v1/tenants/onboarding")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    @DisplayName("POST /api/v1/tenants: Thất bại khi adminEmail không đúng định dạng (400 Bad Request)")
+    @DisplayName("POST /api/v1/tenants/onboarding: Thất bại khi adminEmail không đúng định dạng (400 Bad Request)")
     void testOnboarding_ValidationFailure_InvalidAdminEmailFormat() throws Exception {
         TenantOnboardingRequest request = TenantOnboardingRequest.builder()
                 .companyName("Store")
@@ -310,7 +310,7 @@ class TenantControllerTest {
                 .adminEmail("invalid-email-format")
                 .build();
 
-        mockMvc.perform(post("/api/v1/tenants")
+        mockMvc.perform(post("/api/v1/tenants/onboarding")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -430,11 +430,11 @@ class TenantControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/tenants/{tenantId}/status: Tương thích ngược endpoint cũ")
-    void testGetStatus_BackwardCompatibility() throws Exception {
+    @DisplayName("GET /api/v1/tenants/{tenantId}/status: Lấy trạng thái tenant")
+    void testGetStatus_Success() throws Exception {
         when(tenantService.isTenantActive(1L)).thenReturn(true);
 
-        mockMvc.perform(get("/api/tenants/1/status"))
+        mockMvc.perform(get("/api/v1/tenants/1/status"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").value(true));

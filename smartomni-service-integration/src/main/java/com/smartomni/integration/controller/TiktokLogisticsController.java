@@ -26,7 +26,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping({"/api/v1/tiktok/logistics", "/api/tiktok/logistics", "/api/marketplace-connections/tiktok/logistics"})
+@RequestMapping("/api/v1/tiktok/logistics")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'MANAGER', 'STAFF')")
 public class TiktokLogisticsController {

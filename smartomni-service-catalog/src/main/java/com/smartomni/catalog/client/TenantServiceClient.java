@@ -14,6 +14,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "smartomni-service-tenant", url = "${smartomni.services.tenant-url:http://localhost:8082}")
 public interface TenantServiceClient {
 
-    @GetMapping("/api/tenants/{tenantId}/status")
+    @GetMapping("/api/v1/tenants/{tenantId}/status")
     ApiResponse<Boolean> isTenantActive(@PathVariable("tenantId") Long tenantId);
 }

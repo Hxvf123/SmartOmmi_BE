@@ -21,7 +21,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping({"/api/v1/tiktok/cancellations", "/api/tiktok/cancellations", "/api/marketplace-connections/tiktok/cancellations"})
+@RequestMapping("/api/v1/tiktok/cancellations")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'MANAGER', 'STAFF')")
 public class TiktokCancellationController {

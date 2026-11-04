@@ -41,9 +41,8 @@ public class SubdomainContextFilter extends OncePerRequestFilter {
         if (path == null) {
             return false;
         }
-        return path.startsWith("/api/v1/auth/") || path.startsWith("/api/auth/")
-                || path.equals("/api/v1/auth") || path.equals("/api/auth")
-                || path.startsWith("/api/v1/tenants/onboarding") || path.startsWith("/api/tenants/onboarding");
+        return path.startsWith("/api/v1/auth/") || path.equals("/api/v1/auth")
+                || path.startsWith("/api/v1/tenants/onboarding");
     }
 
     @Override

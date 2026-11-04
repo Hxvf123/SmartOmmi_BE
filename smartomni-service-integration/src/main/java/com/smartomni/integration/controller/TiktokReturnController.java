@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping({"/api/v1/tiktok/returns", "/api/tiktok/returns", "/api/marketplace-connections/tiktok/returns"})
+@RequestMapping("/api/v1/tiktok/returns")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'MANAGER', 'STAFF')")
 public class TiktokReturnController {

@@ -59,16 +59,16 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(
-                        "/api/v1/auth/register", "/api/auth/register",
-                        "/api/v1/auth/login", "/api/auth/login",
-                        "/api/v1/auth/forgot-password", "/api/auth/forgot-password",
-                        "/api/v1/auth/reset-password", "/api/auth/reset-password",
-                        "/api/v1/auth/refresh", "/api/auth/refresh",
-                        "/api/v1/tenants/onboarding", "/api/tenants/onboarding"
+                        "/api/v1/auth/register",
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/forgot-password",
+                        "/api/v1/auth/reset-password",
+                        "/api/v1/auth/refresh",
+                        "/api/v1/tenants/onboarding"
                 ).permitAll()
-                .requestMatchers("/api/v1/auth/change-password", "/api/auth/change-password").authenticated()
-                .requestMatchers("/api/v1/auth/**", "/api/auth/**", "/actuator/**").permitAll()
-                .requestMatchers("/api/v1/users/**", "/api/users/**").authenticated()
+                .requestMatchers("/api/v1/auth/change-password").authenticated()
+                .requestMatchers("/api/v1/auth/**", "/actuator/**").permitAll()
+                .requestMatchers("/api/v1/users/**").authenticated()
                 .anyRequest().authenticated()
             );
         return http.build();

@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Controller cho các API liên quan đến thông tin cá nhân của người dùng (Profile cá nhân).
  */
 @RestController
-@RequestMapping({"/api/v1/users", "/api/users"})
+@RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 public class UserController {
 

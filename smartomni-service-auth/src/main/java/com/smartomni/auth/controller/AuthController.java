@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Controller cho các API Xác thực, cấp phát/làm mới Token, Đăng xuất, Đăng ký và Quản lý Mật khẩu.
  */
 @RestController
-@RequestMapping({"/api/v1/auth", "/api/auth"})
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 

@@ -21,7 +21,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping({"/api/v1/tiktok/orders", "/api/tiktok/orders", "/api/marketplace-connections/tiktok/orders"})
+@RequestMapping("/api/v1/tiktok/orders")
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'MANAGER', 'STAFF')")
 public class TiktokOrderController {

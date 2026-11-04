@@ -19,10 +19,9 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * Controller for Tenant operations (TEN-01.1, UC-17, UC-19, UC-25).
- * Supports both /api/v1/tenants and /api/tenants paths.
  */
 @RestController
-@RequestMapping({"/api/v1/tenants", "/api/tenants"})
+@RequestMapping("/api/v1/tenants")
 @RequiredArgsConstructor
 public class TenantController {
 
@@ -38,7 +37,7 @@ public class TenantController {
         return ApiResponse.success(tenantService.getPublicStorefrontProfile(subdomain));
     }
 
-    @PostMapping({"", "/onboarding", "/register/onboarding"})
+    @PostMapping("/onboarding")
     public ApiResponse<TenantProfileResponse> onboard(@Valid @RequestBody TenantOnboardingRequest request) {
         return ApiResponse.success("Khởi tạo Tenant thành công", tenantService.onboardTenant(request));
     }
