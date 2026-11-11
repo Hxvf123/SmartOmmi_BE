@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(name = "smartomni-service-order", url = "${smartomni.services.order-url:http://localhost:8085}")
 public interface OrderServiceClient {
 
-    @PatchMapping("/api/orders/tracking")
+    @PatchMapping("/api/v1/orders/tracking")
     ApiResponse<Void> updateTracking(@RequestBody UpdateOrderTrackingRequest request);
 
-    @PostMapping("/api/orders/returns")
+    @PostMapping("/api/v1/orders/returns")
     ApiResponse<Void> processReturn(@RequestBody ProcessReturnRequest request);
 }

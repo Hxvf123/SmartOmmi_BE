@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
  * (Routed via Nginx /api/marketplace-connections/ to integration-service:8086).
  */
 @RestController
-@RequestMapping("/api/marketplace-connections/shopee")
+@RequestMapping("/api/v1/marketplace-connections/shopee")
 @RequiredArgsConstructor
 public class ShopeeConnectionController {
 

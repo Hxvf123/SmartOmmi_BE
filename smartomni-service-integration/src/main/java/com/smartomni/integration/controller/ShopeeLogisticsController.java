@@ -23,7 +23,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/marketplace-connections/shopee")
+@RequestMapping("/api/v1/marketplace-connections/shopee")
 @RequiredArgsConstructor
 public class ShopeeLogisticsController {
 

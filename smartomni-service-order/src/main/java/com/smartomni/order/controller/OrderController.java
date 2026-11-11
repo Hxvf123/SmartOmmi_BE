@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
  * UC-06: Tra cuu don hang cheo nen tang (Khach hang - endpoint /track khong yeu cau dang nhap)
  */
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
 public class OrderController {
 

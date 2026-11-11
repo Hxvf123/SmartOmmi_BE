@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(name = "smartomni-service-inventory", url = "${smartomni.services.inventory-url:http://localhost:8084}")
 public interface InventoryServiceClient {
 
-    @PostMapping("/api/inventory/{skuId}/deduct")
+    @PostMapping("/api/v1/inventory/{skuId}/deduct")
     ApiResponse<Void> deductStock(@PathVariable("skuId") Long skuId, @RequestParam("quantity") int quantity);
 
-    @PostMapping("/api/inventory/{skuId}/restock")
+    @PostMapping("/api/v1/inventory/{skuId}/restock")
     ApiResponse<Void> restock(@PathVariable("skuId") Long skuId, @RequestParam("quantity") int quantity);
 }

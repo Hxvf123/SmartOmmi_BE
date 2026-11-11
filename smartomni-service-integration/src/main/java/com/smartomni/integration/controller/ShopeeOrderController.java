@@ -20,7 +20,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/marketplace-connections/shopee/orders")
+@RequestMapping("/api/v1/marketplace-connections/shopee/orders")
 @RequiredArgsConstructor
 public class ShopeeOrderController {
 

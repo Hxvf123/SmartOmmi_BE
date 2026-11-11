@@ -10,6 +10,8 @@ import com.smartomni.common.exception.ResourceNotFoundException;
 import com.smartomni.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -83,5 +85,10 @@ public class ProductService {
 
     public List<ProductSku> getSkusByProduct(Long productId) {
         return skuRepository.findByProductId(productId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Product> listProducts(Pageable pageable) {
+        return productRepository.findByTenantId(TenantContext.getTenantId(), pageable);
     }
 }
