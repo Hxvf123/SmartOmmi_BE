@@ -19,18 +19,23 @@ public class ApiResponse<T> {
 
     private boolean success;
     private String message;
+    private String code;
     private T data;
     private Instant timestamp;
 
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(true, null, data, Instant.now());
+        return new ApiResponse<>(true, null, null, data, Instant.now());
     }
 
     public static <T> ApiResponse<T> success(String message, T data) {
-        return new ApiResponse<>(true, message, data, Instant.now());
+        return new ApiResponse<>(true, message, null, data, Instant.now());
     }
 
     public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(false, message, null, Instant.now());
+        return error(message, null);
+    }
+
+    public static <T> ApiResponse<T> error(String message, String code) {
+        return new ApiResponse<>(false, message, code, null, Instant.now());
     }
 }
