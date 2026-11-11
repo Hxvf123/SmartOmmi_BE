@@ -1,6 +1,7 @@
 package com.smartomni.common.exception;
 
 import com.smartomni.common.dto.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -17,12 +18,13 @@ import java.util.stream.Collectors;
  * "com.smartomni" se tu dong nhan duoc).
  */
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Object>> handleBusinessException(BusinessException ex) {
         return ResponseEntity.status(ex.getHttpStatus())
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage(), ex.getErrorCode()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -30,18 +32,19 @@ public class GlobalExceptionHandler {
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("; "));
-        return ResponseEntity.badRequest().body(ApiResponse.error(message));
+        return ResponseEntity.badRequest().body(ApiResponse.error(message, "VALIDATION_ERROR"));
     }
 
     @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
     public ResponseEntity<ApiResponse<Object>> handleAuthenticationException(org.springframework.security.core.AuthenticationException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error("Chưa đăng nhập hoặc phiên đã hết hạn", "UNAUTHORIZED"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
+        log.error("Unhandled API exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Da xay ra loi he thong: " + ex.getMessage()));
+                .body(ApiResponse.error("Không thể xử lý yêu cầu. Vui lòng thử lại.", "INTERNAL_ERROR"));
     }
 }
