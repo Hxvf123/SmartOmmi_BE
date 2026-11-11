@@ -11,7 +11,7 @@ import java.util.List;
 
 /** UC-14/UC-35: Du bao nhu cau hang hoa & canh bao ton kho. */
 @RestController
-@RequestMapping("/api/ai/forecast")
+@RequestMapping("/api/v1/ai/forecast")
 @RequiredArgsConstructor
 public class DemandForecastController {
 

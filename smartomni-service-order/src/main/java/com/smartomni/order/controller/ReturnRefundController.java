@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 /** UC-13: Quan ly hoan/huy don hang. */
 @RestController
-@RequestMapping("/api/returns")
+@RequestMapping("/api/v1/returns")
 @RequiredArgsConstructor
 public class ReturnRefundController {
 

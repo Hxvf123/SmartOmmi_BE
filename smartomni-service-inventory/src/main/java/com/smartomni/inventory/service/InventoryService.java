@@ -6,6 +6,8 @@ import com.smartomni.inventory.entity.Inventory;
 import com.smartomni.inventory.entity.InventoryOutboxEvent;
 import com.smartomni.inventory.repository.InventoryOutboxEventRepository;
 import com.smartomni.inventory.repository.InventoryRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.retry.annotation.Backoff;
@@ -23,6 +25,11 @@ public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryOutboxEventRepository outboxEventRepository;
+
+    @Transactional(readOnly = true)
+    public Page<Inventory> listInventory(Pageable pageable) {
+        return inventoryRepository.findByTenantId(TenantContext.getTenantId(), pageable);
+    }
 
     /**
      * Tru ton kho khi co don hang moi (goi tu Order Service qua REST/MQ consumer).

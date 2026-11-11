@@ -15,7 +15,7 @@ import java.util.Map;
  * (Mounted under /api/marketplace-connections/shopee).
  */
 @RestController
-@RequestMapping("/api/marketplace-connections/shopee")
+@RequestMapping("/api/v1/marketplace-connections/shopee")
 @RequiredArgsConstructor
 public class ShopeeCatalogController {
 

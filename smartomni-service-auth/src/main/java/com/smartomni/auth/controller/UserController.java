@@ -83,7 +83,7 @@ public class UserController {
         return null;
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','TENANT_OWNER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','TENANT_ADMIN')")
     @PostMapping
     public ApiResponse<UserProfileResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         Long callerId = resolveCurrentUserId();
@@ -92,7 +92,7 @@ public class UserController {
         return ApiResponse.success("Tạo tài khoản thành công", response);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','TENANT_OWNER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','TENANT_ADMIN')")
     @GetMapping
     public ApiResponse<PageResponse<UserProfileResponse>> listUsers(
             @RequestParam(required = false) String keyword,
@@ -108,7 +108,7 @@ public class UserController {
         return ApiResponse.success("Lấy danh sách người dùng thành công", pageResponse);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','TENANT_OWNER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','TENANT_ADMIN')")
     @PutMapping("/{id}")
     public ApiResponse<UserProfileResponse> adminUpdateUser(@PathVariable("id") Long id,
                                                              @Valid @RequestBody AdminUpdateUserRequest request) {
@@ -118,7 +118,7 @@ public class UserController {
         return ApiResponse.success("Cập nhật người dùng thành công", response);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','TENANT_OWNER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','TENANT_ADMIN')")
     @PatchMapping("/{id}/status")
     public ApiResponse<UserProfileResponse> updateUserStatus(@PathVariable("id") Long id,
                                                                @Valid @RequestBody UpdateUserStatusRequest request) {
@@ -128,7 +128,7 @@ public class UserController {
         return ApiResponse.success("Thay đổi trạng thái người dùng thành công", response);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','TENANT_OWNER')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','TENANT_ADMIN')")
     @PutMapping("/{id}/roles")
     public ApiResponse<UserProfileResponse> assignRoles(@PathVariable("id") Long id,
                                                           @Valid @RequestBody AssignRolesRequest request) {

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 /** UC-18: Cau hinh ket noi san TMDT. UC-40: tuy chon tu dong nhap san pham. */
 @RestController
-@RequestMapping("/api/marketplace-connections")
+@RequestMapping("/api/v1/marketplace-connections")
 @RequiredArgsConstructor
 public class MarketplaceConnectionController {
 

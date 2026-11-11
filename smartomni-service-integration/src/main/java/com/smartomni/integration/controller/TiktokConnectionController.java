@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * (Paths sit under /api/marketplace-connections/ because that is the prefix nginx routes to this service.)
  */
 @RestController
-@RequestMapping("/api/marketplace-connections/tiktok-shop")
+@RequestMapping("/api/v1/marketplace-connections/tiktok-shop")
 @RequiredArgsConstructor
 public class TiktokConnectionController {
 

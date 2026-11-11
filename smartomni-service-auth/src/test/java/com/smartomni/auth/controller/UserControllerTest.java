@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -47,6 +48,20 @@ class UserControllerTest {
 
     @MockBean
     private org.springframework.data.jpa.mapping.JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+    @Test
+    void tenantAdminCanListUsers() throws Exception {
+        String token = "tenant-admin-token";
+        when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+        when(jwtTokenProvider.getUserId(token)).thenReturn(7L);
+        when(jwtTokenProvider.getRole(token)).thenReturn("TENANT_ADMIN");
+
+        mockMvc.perform(get("/api/v1/users")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+        verify(userService).listUsers(7L, "TENANT_ADMIN", null, null, null,
+                0, 10, "createdAt", "desc");
+    }
 
     @Test
     @DisplayName("GET /api/v1/users/me thành công khi có Bearer token hợp lệ")

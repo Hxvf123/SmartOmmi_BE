@@ -11,7 +11,7 @@ import java.util.List;
 
 /** UC-07: Nhan goi y san pham ca nhan hoa (Khach hang doc qua Storefront -> Gateway -> service nay). */
 @RestController
-@RequestMapping("/api/ai/recommendations")
+@RequestMapping("/api/v1/ai/recommendations")
 @RequiredArgsConstructor
 public class RecommendationController {
 
