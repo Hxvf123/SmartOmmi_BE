@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /** Goi sang smartomni-service-inventory de tru / hoan tra ton kho (UC-33). */
-@FeignClient(name = "smartomni-service-inventory", url = "${smartomni.services.inventory-url:http://localhost:8084}")
+@FeignClient(name = "smartomni-service-inventory", url = "${smartomni.services.inventory-url:http://localhost:8084}", configuration = com.smartomni.order.config.InventoryClientSecurityConfig.class)
 public interface InventoryServiceClient {
 
     @PostMapping("/api/v1/inventory/{skuId}/deduct")

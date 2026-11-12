@@ -101,11 +101,7 @@ public class OrderService {
 
                 // FR-027, FR-028: gọi Inventory Service trừ kho nếu đã map được internal skuId
                 if (itemPayload.getSkuId() != null && itemPayload.getQuantity() != null && itemPayload.getQuantity() > 0) {
-                    try {
-                        inventoryServiceClient.deductStock(itemPayload.getSkuId(), itemPayload.getQuantity());
-                    } catch (Exception ex) {
-                        log.error("Trừ kho thất bại cho SKU {}: {}", itemPayload.getSkuId(), ex.getMessage());
-                    }
+                    inventoryServiceClient.deductStock(itemPayload.getSkuId(), itemPayload.getQuantity());
                 }
             }
         }
@@ -392,12 +388,8 @@ public class OrderService {
         log.info("Tự động hoàn trả tồn kho cho đơn hàng CANCELLED id={}, itemsCount={}", order.getId(), items.size());
         for (OrderItem item : items) {
             if (item.getSkuId() != null && item.getQuantity() != null && item.getQuantity() > 0) {
-                try {
-                    inventoryServiceClient.restock(item.getSkuId(), item.getQuantity());
-                    log.info("Hoàn trả tồn kho thành công cho skuId={}, quantity={}", item.getSkuId(), item.getQuantity());
-                } catch (Exception ex) {
-                    log.error("Hoàn trả tồn kho thất bại cho SKU {}: {}", item.getSkuId(), ex.getMessage());
-                }
+                inventoryServiceClient.restock(item.getSkuId(), item.getQuantity());
+                log.info("Hoàn trả tồn kho thành công cho skuId={}, quantity={}", item.getSkuId(), item.getQuantity());
             }
         }
     }
