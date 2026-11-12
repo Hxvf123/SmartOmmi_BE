@@ -25,11 +25,12 @@ public class ReturnRefundService {
 
     @Transactional
     public ReturnRefund createReturnRequest(CreateReturnRequest request) {
-        Order order = orderRepository.findById(request.getOrderId())
+        Long tenantId = requireTenantId();
+        Order order = orderRepository.findByIdAndTenantId(request.getOrderId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Don hang khong ton tai: " + request.getOrderId()));
 
         ReturnRefund refund = new ReturnRefund();
-        refund.setTenantId(TenantContext.getTenantId());
+        refund.setTenantId(tenantId);
         refund.setOrderId(order.getId());
         refund.setReason(request.getReason());
         refund.setStatus(ReturnRefund.RefundStatus.REQUESTED);
@@ -38,22 +39,32 @@ public class ReturnRefundService {
 
     @Transactional
     public ReturnRefund approveAndRestock(Long refundId) {
-        ReturnRefund refund = returnRefundRepository.findById(refundId)
+        Long tenantId = requireTenantId();
+        ReturnRefund refund = returnRefundRepository.findByIdAndTenantId(refundId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Yeu cau hoan/huy khong ton tai: " + refundId));
+        Order order = orderRepository.findByIdAndTenantId(refund.getOrderId(), tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Don hang khong ton tai: " + refund.getOrderId()));
 
         refund.setStatus(ReturnRefund.RefundStatus.COMPLETED);
         refund.setRestocked(true);
         returnRefundRepository.save(refund);
 
         // FR-030: cong tra ton kho tuong ung
-        for (OrderItem item : orderItemRepository.findByOrderId(refund.getOrderId())) {
+        for (OrderItem item : orderItemRepository.findByOrderIdAndTenantId(refund.getOrderId(), tenantId)) {
             // TODO: inventoryServiceClient.restock(item.getSkuId(), item.getQuantity());
         }
 
-        Order order = orderRepository.findById(refund.getOrderId()).orElseThrow();
         order.setStatus(Order.OrderStatus.RETURNED);
         orderRepository.save(order);
 
         return refund;
+    }
+
+    private Long requireTenantId() {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new ResourceNotFoundException("Khong tim thay tenant hien tai");
+        }
+        return tenantId;
     }
 }
