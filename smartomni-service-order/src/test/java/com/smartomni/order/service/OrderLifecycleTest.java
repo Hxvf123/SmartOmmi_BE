@@ -2,6 +2,7 @@ package com.smartomni.order.service;
 
 import com.smartomni.common.dto.ApiResponse;
 import com.smartomni.common.dto.WebhookOrderPayload;
+import com.smartomni.common.tenant.TenantContext;
 import com.smartomni.order.client.InventoryServiceClient;
 import com.smartomni.order.entity.Order;
 import com.smartomni.order.entity.OrderItem;
@@ -12,6 +13,7 @@ import com.smartomni.order.repository.OrderRepository;
 import com.smartomni.order.repository.OrderStatusHistoryRepository;
 import com.smartomni.order.repository.SellerWalletLedgerRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +59,31 @@ class OrderLifecycleTest {
     private OrderService orderService;
 
     private Order sampleOrder;
+
+    @AfterEach void clearTenantContext() { TenantContext.clear(); }
+
+    @Test
+    void updateStatusCannotTouchAnotherTenantOrder() {
+        TenantContext.setTenantId(2L);
+        when(orderRepository.findByIdAndTenantId(ORDER_ID, 2L)).thenReturn(Optional.empty());
+
+        assertThrows(com.smartomni.common.exception.ResourceNotFoundException.class,
+                () -> orderService.updateStatus(ORDER_ID, Order.OrderStatus.SHIPPED));
+
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(orderStatusHistoryRepository, sellerWalletLedgerRepository, inventoryServiceClient);
+    }
+
+    @Test
+    void updateStatusCanFindOwnTenantOrder() {
+        TenantContext.setTenantId(TENANT_ID);
+        when(orderRepository.findByIdAndTenantId(ORDER_ID, TENANT_ID)).thenReturn(Optional.of(sampleOrder));
+        when(orderRepository.save(sampleOrder)).thenReturn(sampleOrder);
+
+        orderService.updateStatus(ORDER_ID, Order.OrderStatus.SHIPPED);
+
+        verify(orderRepository).save(sampleOrder);
+    }
 
     @BeforeEach
     void setUp() {

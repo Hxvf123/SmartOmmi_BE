@@ -4,6 +4,7 @@ import com.smartomni.common.dto.ProcessReturnRequest;
 import com.smartomni.common.dto.UpdateOrderTrackingRequest;
 import com.smartomni.common.dto.WebhookOrderPayload;
 import com.smartomni.common.exception.ResourceNotFoundException;
+import com.smartomni.common.tenant.TenantContext;
 import com.smartomni.order.client.InventoryServiceClient;
 import com.smartomni.order.entity.Order;
 import com.smartomni.order.entity.OrderItem;
@@ -112,7 +113,11 @@ public class OrderService {
      */
     @Transactional
     public Order updateStatus(Long orderId, Order.OrderStatus newStatus) {
-        Order order = orderRepository.findById(orderId)
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new ResourceNotFoundException("Đơn hàng không tồn tại: " + orderId);
+        }
+        Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng không tồn tại: " + orderId));
         return updateOrderStatus(order, newStatus, OrderStatusHistory.OrderChangeSource.MANAGER);
     }
