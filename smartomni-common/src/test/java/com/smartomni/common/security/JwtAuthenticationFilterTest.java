@@ -74,7 +74,11 @@ class JwtAuthenticationFilterTest {
         when(jwtTokenProvider.getRole(token)).thenReturn("ADMIN");
         when(jwtTokenProvider.getTenantId(token)).thenReturn(100L);
 
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator);
+        when(jwtTokenProvider.getTokenVersion(token)).thenReturn(0L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(values);
+        when(values.get(UserAccessState.key(10L))).thenReturn("ACTIVE:0");
+
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplate);
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain, times(1)).doFilter(request, response);
@@ -87,6 +91,9 @@ class JwtAuthenticationFilterTest {
 
     @Mock
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
+    @Mock
+    private org.springframework.data.redis.core.ValueOperations<String, String> values;
 
     @Test
     @DisplayName("Từ chối request với HTTP 403 khi Tenant bị khóa trong Redis (auth:tenant_locked:<tenantId>)")
@@ -102,6 +109,9 @@ class JwtAuthenticationFilterTest {
         when(jwtTokenProvider.getRole(token)).thenReturn("ADMIN");
         when(jwtTokenProvider.getTenantId(token)).thenReturn(100L);
         when(jwtTokenProvider.getSubdomain(token)).thenReturn("locked-tenant");
+        when(jwtTokenProvider.getTokenVersion(token)).thenReturn(0L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(values);
+        when(values.get(UserAccessState.key(10L))).thenReturn("ACTIVE:0");
         when(stringRedisTemplate.hasKey("auth:tenant_locked:100")).thenReturn(true);
 
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplate);
@@ -127,6 +137,27 @@ class JwtAuthenticationFilterTest {
         verify(filterChain, times(1)).doFilter(request, response);
         verify(tokenBlacklistValidator, never()).isBlacklisted(anyString());
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void disabledUserTokenIsRejectedBeforeAuthentication() throws Exception {
+        String token = "disabled-token";
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/products");
+        request.addHeader("Authorization", "Bearer " + token);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+        when(jwtTokenProvider.getUserId(token)).thenReturn(10L);
+        when(jwtTokenProvider.getRole(token)).thenReturn("MANAGER");
+        when(jwtTokenProvider.getTokenVersion(token)).thenReturn(0L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(values);
+        when(values.get(UserAccessState.key(10L))).thenReturn("DISABLED:1");
+
+        new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplate)
+                .doFilter(request, response, filterChain);
+
+        assertEquals(401, response.getStatus());
+        assertTrue(response.getContentAsString().contains("TOKEN_REVOKED"));
+        verifyNoInteractions(filterChain);
     }
 
     @Test

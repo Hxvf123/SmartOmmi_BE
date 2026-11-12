@@ -66,6 +66,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Long tenantId = jwtTokenProvider.getTenantId(token);
                 String subdomain = jwtTokenProvider.getSubdomain(token);
 
+                if (!(userId == 0L && "INTERNAL_SERVICE".equals(role))
+                        && !hasCurrentAccess(userId, jwtTokenProvider.getTokenVersion(token))) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"success\":false,\"message\":\"Phiên đăng nhập đã bị thu hồi\",\"code\":\"TOKEN_REVOKED\"}");
+                    return;
+                }
+
                 // Kiểm tra cờ Redis auth:tenant_locked:<tenantId>
                 if (tenantId != null && !AppConstants.ROLE_SUPER_ADMIN.equalsIgnoreCase(role) && isTenantLocked(tenantId)) {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -98,6 +106,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         try {
             return Boolean.TRUE.equals(stringRedisTemplate.hasKey(AppConstants.REDIS_PREFIX_TENANT_LOCKED + tenantId));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean hasCurrentAccess(Long userId, Long tokenVersion) {
+        if (stringRedisTemplate == null || userId == null || tokenVersion == null) {
+            return false;
+        }
+        try {
+            return UserAccessState.active(tokenVersion).equals(
+                    stringRedisTemplate.opsForValue().get(UserAccessState.key(userId)));
         } catch (Exception e) {
             return false;
         }

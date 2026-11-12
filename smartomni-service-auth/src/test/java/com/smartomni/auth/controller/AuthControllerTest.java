@@ -10,6 +10,7 @@ import com.smartomni.common.exception.GlobalExceptionHandler;
 import com.smartomni.common.security.JwtTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -42,6 +43,16 @@ class AuthControllerTest {
 
     @MockBean
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
+    @MockBean
+    private org.springframework.data.redis.core.ValueOperations<String, String> values;
+
+    @BeforeEach
+    void allowActiveMockUser() {
+        org.mockito.Mockito.lenient().when(jwtTokenProvider.getTokenVersion(org.mockito.ArgumentMatchers.anyString())).thenReturn(0L);
+        org.mockito.Mockito.lenient().when(stringRedisTemplate.opsForValue()).thenReturn(values);
+        org.mockito.Mockito.lenient().when(values.get(org.mockito.ArgumentMatchers.anyString())).thenReturn("ACTIVE:0");
+    }
 
     @MockBean
     private org.springframework.data.jpa.mapping.JpaMetamodelMappingContext jpaMetamodelMappingContext;
