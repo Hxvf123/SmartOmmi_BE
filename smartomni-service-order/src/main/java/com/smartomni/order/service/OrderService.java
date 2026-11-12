@@ -145,7 +145,8 @@ public class OrderService {
         }
 
         if (!TiktokOrderStatusMapper.isValidTransition(previousStatus, newStatus)) {
-            log.warn("Chuyển trạng thái bất thường từ {} sang {} cho orderId={}", previousStatus, newStatus, order.getId());
+            throw new BusinessException("Chuyển trạng thái không hợp lệ từ " + previousStatus + " sang " + newStatus,
+                    HttpStatus.CONFLICT, "INVALID_ORDER_STATUS_TRANSITION");
         }
 
         order.setStatus(newStatus);

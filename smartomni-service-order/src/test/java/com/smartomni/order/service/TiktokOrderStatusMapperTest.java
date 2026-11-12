@@ -35,7 +35,6 @@ class TiktokOrderStatusMapperTest {
             "IN_CANCEL, ON_HOLD",
             "ON_HOLD, ON_HOLD",
             "on_hold, ON_HOLD",
-            "UNKNOWN_STATUS, PENDING",
             "'', PENDING"
     })
     @DisplayName("Ánh xạ chính xác trạng thái từ TikTok Shop sang OrderStatus")
@@ -48,6 +47,12 @@ class TiktokOrderStatusMapperTest {
     @DisplayName("Null status trả về PENDING mặc định")
     void testMapNullStatus() {
         assertEquals(Order.OrderStatus.PENDING, TiktokOrderStatusMapper.map(null));
+    }
+
+    @Test
+    void unknownStatusDoesNotBecomePending() {
+        assertThrows(com.smartomni.common.exception.BusinessException.class,
+                () -> TiktokOrderStatusMapper.map("UNKNOWN_STATUS"));
     }
 
     @Test

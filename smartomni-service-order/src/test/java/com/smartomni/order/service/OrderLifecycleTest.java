@@ -215,18 +215,19 @@ class OrderLifecycleTest {
     }
 
     @Test
-    @DisplayName("Đơn hàng đã giao bưu tá (courierScannedAt != null) bị huỷ: KHÔNG tự động hoàn kho trước giao")
+    @DisplayName("Từ chối hủy đơn đã giao bưu tá và không hoàn kho")
     void handleOrderStatusChange_cancelledAfterCourier_doesNotRestock() {
         sampleOrder.setStatus(Order.OrderStatus.SHIPPED);
         sampleOrder.setCourierScannedAt(Instant.now().minusSeconds(3600));
 
         when(orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(TENANT_ID, Order.Platform.TIKTOK_SHOP, PLATFORM_ORDER_ID))
                 .thenReturn(Optional.of(sampleOrder));
-        when(orderRepository.save(any(Order.class))).thenReturn(sampleOrder);
+        assertThrows(com.smartomni.common.exception.BusinessException.class,
+                () -> orderService.handleOrderStatusChange(TENANT_ID, "TIKTOK_SHOP", PLATFORM_ORDER_ID, "CANCELLED"));
 
-        Order updated = orderService.handleOrderStatusChange(TENANT_ID, "TIKTOK_SHOP", PLATFORM_ORDER_ID, "CANCELLED");
-
-        assertEquals(Order.OrderStatus.CANCELLED, updated.getStatus());
+        assertEquals(Order.OrderStatus.SHIPPED, sampleOrder.getStatus());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(orderStatusHistoryRepository, sellerWalletLedgerRepository);
         verify(inventoryServiceClient, never()).restock(anyLong(), anyInt());
     }
 
