@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -267,15 +266,7 @@ public class UserServiceImpl implements UserService {
         User saved = userRepository.save(target);
 
         if (newStatus == User.UserStatus.DISABLED) {
-            // revoke refresh tokens from Redis
-            String pattern = AuthServiceImpl.REDIS_PREFIX_USER_REFRESH + targetUserId + "*";
-            Set<String> keys = stringRedisTemplate.keys(pattern);
-            if (keys != null && !keys.isEmpty()) {
-                stringRedisTemplate.delete(keys);
-                log.info("Revoked {} refresh token(s) for disabled user ID {}", keys.size(), targetUserId);
-            } else {
-                log.info("No refresh tokens found to revoke for disabled user ID {}", targetUserId);
-            }
+            new UserRefreshTokenRevoker(stringRedisTemplate).revoke(targetUserId);
         }
 
         String subdomain = resolveSubdomain(saved.getTenantId());
@@ -329,15 +320,7 @@ public class UserServiceImpl implements UserService {
         target.setRole(newRole);
         User saved = userRepository.save(target);
 
-        // Revoke refresh tokens from Redis for the user (role change requires new JWT)
-        String pattern = AuthServiceImpl.REDIS_PREFIX_USER_REFRESH + targetUserId + "*";
-        Set<String> keys = stringRedisTemplate.keys(pattern);
-        if (keys != null && !keys.isEmpty()) {
-            stringRedisTemplate.delete(keys);
-            log.info("Revoked {} refresh token(s) for role-changed user ID {}", keys.size(), targetUserId);
-        } else {
-            log.info("No refresh tokens found to revoke for role-changed user ID {}", targetUserId);
-        }
+        new UserRefreshTokenRevoker(stringRedisTemplate).revoke(targetUserId);
 
         String subdomain = resolveSubdomain(saved.getTenantId());
         return mapToProfileResponse(saved, subdomain);
