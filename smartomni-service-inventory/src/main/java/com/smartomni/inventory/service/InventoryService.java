@@ -6,6 +6,8 @@ import com.smartomni.inventory.entity.Inventory;
 import com.smartomni.inventory.entity.InventoryOutboxEvent;
 import com.smartomni.inventory.repository.InventoryOutboxEventRepository;
 import com.smartomni.inventory.repository.InventoryRepository;
+import com.smartomni.inventory.repository.SkuOwnershipRepository;
+import com.smartomni.common.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryOutboxEventRepository outboxEventRepository;
+    private final SkuOwnershipRepository skuOwnershipRepository;
 
     @Transactional(readOnly = true)
     public Page<Inventory> listInventory(Pageable pageable) {
@@ -55,8 +58,9 @@ public class InventoryService {
 
     @Transactional
     public void adjustStock(Long skuId, int newQuantity) {
-        Inventory inventory = inventoryRepository.findByTenantIdAndSkuId(requireTenantId(), skuId)
-                .orElseThrow(() -> new BusinessException("Khong tim thay ton kho cho SKU: " + skuId));
+        Long tenantId = requireTenantId();
+        Inventory inventory = inventoryRepository.findByTenantIdAndSkuId(tenantId, skuId)
+                .orElseGet(() -> newInventoryForOwnedSku(tenantId, skuId));
         inventory.setQuantityOnHand(newQuantity);
         inventoryRepository.save(inventory);
 
@@ -65,8 +69,9 @@ public class InventoryService {
 
     @Transactional
     public void restock(Long skuId, int quantity) {
-        Inventory inventory = inventoryRepository.findByTenantIdAndSkuId(requireTenantId(), skuId)
-                .orElseThrow(() -> new BusinessException("Khong tim thay ton kho cho SKU: " + skuId));
+        Long tenantId = requireTenantId();
+        Inventory inventory = inventoryRepository.findByTenantIdAndSkuId(tenantId, skuId)
+                .orElseGet(() -> newInventoryForOwnedSku(tenantId, skuId));
         inventory.setQuantityOnHand(inventory.getQuantityOnHand() + quantity);
         inventoryRepository.save(inventory);
 
@@ -91,5 +96,15 @@ public class InventoryService {
             throw new BusinessException("Thieu thong tin tenant");
         }
         return tenantId;
+    }
+
+    private Inventory newInventoryForOwnedSku(Long tenantId, Long skuId) {
+        if (!skuOwnershipRepository.exists(tenantId, skuId)) {
+            throw new ResourceNotFoundException("SKU khong ton tai trong tenant: " + skuId);
+        }
+        Inventory inventory = new Inventory();
+        inventory.setTenantId(tenantId);
+        inventory.setSkuId(skuId);
+        return inventory;
     }
 }
