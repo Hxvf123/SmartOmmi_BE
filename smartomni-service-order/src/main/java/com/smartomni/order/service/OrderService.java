@@ -180,7 +180,7 @@ public class OrderService {
         if (request == null) {
             throw new IllegalArgumentException("Request must not be null");
         }
-        Long tenantId = request.getTenantId();
+        Long tenantId = requireRequestTenant(request.getTenantId());
         Order.Platform platform = request.getPlatform() != null && !request.getPlatform().isBlank()
                 ? Order.Platform.valueOf(request.getPlatform().toUpperCase())
                 : Order.Platform.TIKTOK_SHOP;
@@ -200,11 +200,7 @@ public class OrderService {
         Order lastUpdatedOrder = null;
         for (String platformOrderId : orderIds) {
             Optional<Order> orderOpt;
-            if (tenantId != null && tenantId > 0) {
-                orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
-            } else {
-                orderOpt = orderRepository.findByPlatformAndPlatformOrderId(platform, platformOrderId);
-            }
+            orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
 
             if (orderOpt.isEmpty()) {
                 log.warn("Không tìm thấy đơn hàng để cập nhật tracking: tenantId={}, platform={}, orderId={}",
@@ -266,7 +262,7 @@ public class OrderService {
         if (request == null) {
             throw new IllegalArgumentException("ProcessReturnRequest must not be null");
         }
-        Long tenantId = request.getTenantId();
+        Long tenantId = requireRequestTenant(request.getTenantId());
         Order.Platform platform = request.getPlatform() != null && !request.getPlatform().isBlank()
                 ? Order.Platform.valueOf(request.getPlatform().toUpperCase())
                 : Order.Platform.TIKTOK_SHOP;
@@ -281,11 +277,7 @@ public class OrderService {
         }
 
         Optional<Order> orderOpt;
-        if (tenantId != null && tenantId > 0) {
-            orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
-        } else {
-            orderOpt = orderRepository.findByPlatformAndPlatformOrderId(platform, platformOrderId);
-        }
+        orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
 
         if (orderOpt.isEmpty()) {
             log.warn("Không tìm thấy đơn hàng cho yêu cầu trả hàng: tenantId={}, platform={}, orderId={}",
@@ -397,6 +389,14 @@ public class OrderService {
                 log.info("Hoàn trả tồn kho thành công cho skuId={}, quantity={}", item.getSkuId(), item.getQuantity());
             }
         }
+    }
+
+    private Long requireRequestTenant(Long requestedTenantId) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null || (requestedTenantId != null && !tenantId.equals(requestedTenantId))) {
+            throw new ResourceNotFoundException("Đơn hàng không tồn tại trong tenant hiện tại");
+        }
+        return tenantId;
     }
 
     private void recordWalletLedger(Order order) {

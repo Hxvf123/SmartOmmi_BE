@@ -85,8 +85,29 @@ class OrderLifecycleTest {
         verify(orderRepository).save(sampleOrder);
     }
 
+    @Test
+    void trackingRequestCannotClaimAnotherTenant() {
+        var request = com.smartomni.common.dto.UpdateOrderTrackingRequest.builder()
+                .tenantId(2L).platform("TIKTOK_SHOP").platformOrderId(PLATFORM_ORDER_ID).build();
+
+        assertThrows(com.smartomni.common.exception.ResourceNotFoundException.class,
+                () -> orderService.updateOrderTracking(request));
+        verifyNoInteractions(orderRepository, inventoryServiceClient);
+    }
+
+    @Test
+    void returnRequestCannotClaimAnotherTenant() {
+        var request = com.smartomni.common.dto.ProcessReturnRequest.builder()
+                .tenantId(2L).platform("TIKTOK_SHOP").platformOrderId(PLATFORM_ORDER_ID).build();
+
+        assertThrows(com.smartomni.common.exception.ResourceNotFoundException.class,
+                () -> orderService.handleOrderReturn(request));
+        verifyNoInteractions(orderRepository, inventoryServiceClient);
+    }
+
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(TENANT_ID);
         sampleOrder = new Order();
         sampleOrder.setId(ORDER_ID);
         sampleOrder.setTenantId(TENANT_ID);
