@@ -3,6 +3,7 @@ package com.smartomni.auth.config;
 import com.smartomni.common.constant.AppConstants;
 import com.smartomni.common.security.JwtAuthenticationFilter;
 import com.smartomni.common.security.JwtTokenProvider;
+import com.smartomni.common.security.PublicEndpointPaths;
 import com.smartomni.common.security.TokenBlacklistValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -58,16 +59,9 @@ public class SecurityConfig {
                     UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .requestMatchers(
-                        "/api/v1/auth/register",
-                        "/api/v1/auth/login",
-                        "/api/v1/auth/forgot-password",
-                        "/api/v1/auth/reset-password",
-                        "/api/v1/auth/refresh",
-                        "/api/v1/tenants/onboarding"
-                ).permitAll()
                 .requestMatchers("/api/v1/auth/change-password").authenticated()
-                .requestMatchers("/api/v1/auth/**", "/actuator/**").permitAll()
+                .requestMatchers(PublicEndpointPaths.PUBLIC_AUTH_ONBOARDING_ERROR).permitAll()
+                .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/v1/users/**").authenticated()
                 .anyRequest().authenticated()
             );

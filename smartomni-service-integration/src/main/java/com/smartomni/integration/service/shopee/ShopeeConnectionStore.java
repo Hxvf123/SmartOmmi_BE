@@ -120,6 +120,11 @@ public class ShopeeConnectionStore {
     }
 
     @Transactional(readOnly = true)
+    public long countActiveConnections(Long tenantId) {
+        return connections.countByTenantIdAndStatusNot(tenantId, ConnectionStatus.DISCONNECTED);
+    }
+
+    @Transactional(readOnly = true)
     public Optional<TokenSnapshot> loadTokens(Long tenantId, Long connectionId) {
         return connections.findById(connectionId)
                 .filter(c -> tenantId.equals(c.getTenantId()) && c.getPlatform() == MarketplaceConnection.Platform.SHOPEE)

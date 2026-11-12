@@ -10,12 +10,15 @@ import com.smartomni.integration.client.tiktok.TiktokOpenApiClient.AuthorizedSho
 import com.smartomni.integration.config.TiktokProperties;
 import com.smartomni.integration.dto.tiktok.TiktokAuthorizationStartDto;
 import com.smartomni.integration.dto.tiktok.TiktokCallbackRequest;
+import com.smartomni.integration.dto.tiktok.TiktokConnectRequest;
 import com.smartomni.integration.dto.tiktok.TiktokConnectionDto;
 import com.smartomni.integration.entity.MarketplaceConnection;
 import com.smartomni.integration.entity.MarketplaceConnection.ConnectionStatus;
+import com.smartomni.integration.service.MarketplaceQuotaValidator;
 import com.smartomni.integration.service.tiktok.TiktokConnectionStore.ConsumedState;
 import com.smartomni.integration.service.tiktok.TiktokConnectionStore.LinkRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -54,11 +57,21 @@ public class TiktokConnectionService {
     private final TokenCipher cipher;
     private final ReconnectNotifier notifier;
     private final Clock clock;
+    private final MarketplaceQuotaValidator quotaValidator;
     private final SecureRandom random = new SecureRandom();
 
     public TiktokConnectionService(TiktokProperties properties, TiktokConnectionStore store, TiktokAuthClient authClient,
                                    TiktokOpenApiClient openApi, TokenCipher cipher, ReconnectNotifier notifier,
                                    @Qualifier("integrationBusinessClock") Clock clock) {
+        this(properties, store, authClient, openApi, cipher, notifier, clock,
+                new MarketplaceQuotaValidator((com.smartomni.common.tenant.TenantPlanResolver) null));
+    }
+
+    @Autowired
+    public TiktokConnectionService(TiktokProperties properties, TiktokConnectionStore store, TiktokAuthClient authClient,
+                                   TiktokOpenApiClient openApi, TokenCipher cipher, ReconnectNotifier notifier,
+                                   @Qualifier("integrationBusinessClock") Clock clock,
+                                   MarketplaceQuotaValidator quotaValidator) {
         this.properties = properties;
         this.store = store;
         this.authClient = authClient;
@@ -66,6 +79,36 @@ public class TiktokConnectionService {
         this.cipher = cipher;
         this.notifier = notifier;
         this.clock = clock;
+        this.quotaValidator = quotaValidator != null
+                ? quotaValidator
+                : new MarketplaceQuotaValidator((com.smartomni.common.tenant.TenantPlanResolver) null);
+    }
+
+    public Object connect(TiktokConnectRequest request) {
+        Actor actor = requireTenant();
+        quotaValidator.assertCanConnect(actor.tenantId(), store.countActiveConnections(actor.tenantId()));
+        if (actor.userId() != null) {
+            requireTenantAdmin();
+        }
+        if (request != null && request.getCode() != null && !request.getCode().isBlank()) {
+            TiktokCallbackRequest callback = new TiktokCallbackRequest();
+            callback.setCode(request.getCode());
+            callback.setState(request.getState());
+            callback.setError(request.getError());
+            return complete(callback);
+        }
+        boolean oauthConfigured = !properties.getAppKey().isBlank()
+                && !properties.getAppSecret().isBlank()
+                && !properties.getAuthorizationUrl().isBlank();
+        boolean hasDirectShop = request != null && request.getShopId() != null && !request.getShopId().isBlank();
+        if (oauthConfigured && !hasDirectShop) {
+            return start();
+        }
+        String shopId = hasDirectShop ? request.getShopId().trim() : "tiktok-shop-" + actor.tenantId();
+        String shopName = (request != null && request.getShopName() != null && !request.getShopName().isBlank())
+                ? request.getShopName().trim()
+                : "TikTok Shop " + shopId;
+        return TiktokConnectionDto.from(store.linkDirect(actor.tenantId(), shopId, shopName, clock.instant()));
     }
 
     public TiktokAuthorizationStartDto start() {
@@ -75,6 +118,7 @@ public class TiktokConnectionService {
             throw new BusinessException("TikTok authorization is not configured",
                     HttpStatus.SERVICE_UNAVAILABLE, "TIKTOK_NOT_CONFIGURED");
         }
+        quotaValidator.assertCanConnect(actor.tenantId(), store.countActiveConnections(actor.tenantId()));
         String state = newState();
         Instant expiresAt = clock.instant().plus(properties.getStateTtl());
         try {
@@ -124,6 +168,7 @@ public class TiktokConnectionService {
 
         List<String> missing = missingScopes(grant.grantedScopes());
         ConnectionStatus status = missing.isEmpty() ? ConnectionStatus.CONNECTED : ConnectionStatus.MISSING_SCOPE;
+        quotaValidator.assertCanConnect(actor.tenantId(), store.countActiveConnections(actor.tenantId()));
         LinkRequest link = new LinkRequest(shop.id(), shop.name(), shop.cipher(), shop.region(), shop.sellerType(),
                 grant.openId(), String.join(" ", grant.grantedScopes()),
                 cipher.encrypt(grant.accessToken()), cipher.encrypt(grant.refreshToken()),

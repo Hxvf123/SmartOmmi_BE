@@ -131,6 +131,30 @@ public class TiktokConnectionStore {
         return connections.findFirstByTenantIdAndPlatformOrderByIdAsc(tenantId, MarketplaceConnection.Platform.TIKTOK_SHOP);
     }
 
+    @Transactional(readOnly = true)
+    public long countActiveConnections(Long tenantId) {
+        return connections.countByTenantIdAndStatusNot(tenantId, ConnectionStatus.DISCONNECTED);
+    }
+
+    @Transactional
+    public MarketplaceConnection linkDirect(Long tenantId, String shopId, String shopName, Instant now) {
+        MarketplaceConnection connection = connections
+                .findFirstByTenantIdAndPlatformOrderByIdAsc(tenantId, MarketplaceConnection.Platform.TIKTOK_SHOP)
+                .orElseGet(() -> {
+                    MarketplaceConnection created = new MarketplaceConnection();
+                    created.setTenantId(tenantId);
+                    created.setPlatform(MarketplaceConnection.Platform.TIKTOK_SHOP);
+                    return created;
+                });
+        connection.setShopId(shopId);
+        connection.setShopName(shopName);
+        connection.setStatus(ConnectionStatus.CONNECTED);
+        connection.setConnectedAt(now);
+        connection.setLastErrorCode(null);
+        connection.setLastErrorAt(null);
+        return connections.saveAndFlush(connection);
+    }
+
     public Optional<MarketplaceConnection> findByShopIdentifier(String identifier) {
         if (identifier == null || identifier.isBlank()) {
             return Optional.empty();

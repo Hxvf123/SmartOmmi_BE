@@ -2,6 +2,7 @@ package com.smartomni.common.tenant;
 
 import com.smartomni.common.constant.AppConstants;
 import com.smartomni.common.security.JwtTokenProvider;
+import com.smartomni.common.security.PublicEndpointPaths;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,17 +30,7 @@ public class TenantFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        String servletPath = request.getServletPath();
-        return isBypassed(uri) || isBypassed(servletPath);
-    }
-
-    private boolean isBypassed(String path) {
-        if (path == null) {
-            return false;
-        }
-        return path.startsWith("/api/v1/auth/") || path.equals("/api/v1/auth")
-                || path.startsWith("/api/v1/tenants/onboarding");
+        return PublicEndpointPaths.isBypassedForTenantFilters(request);
     }
 
     @Override
@@ -55,7 +46,10 @@ public class TenantFilter extends OncePerRequestFilter {
                     TenantContext.setTenantId(jwtTokenProvider.getTenantId(token));
                     TenantContext.setCurrentRole(jwtTokenProvider.getRole(token));
                     TenantContext.setCurrentUserId(jwtTokenProvider.getUserId(token));
-                    TenantContext.setCurrentSubdomain(jwtTokenProvider.getSubdomain(token));
+                    String subdomain = jwtTokenProvider.getSubdomain(token);
+                    if (subdomain != null && !subdomain.isBlank()) {
+                        TenantContext.setCurrentSubdomain(subdomain);
+                    }
                 }
             }
 

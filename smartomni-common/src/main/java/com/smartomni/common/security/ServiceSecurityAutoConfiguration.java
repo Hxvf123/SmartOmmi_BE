@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -53,10 +54,11 @@ public class ServiceSecurityAutoConfiguration {
                                                           JwtTokenProvider jwtTokenProvider,
                                                           TokenBlacklistValidator tokenBlacklistValidator,
                                                           ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider) throws Exception {
-        return http.csrf(csrf -> csrf.disable())
+        return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplateProvider.getIfAvailable()), UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(requests -> requests
+                        .requestMatchers(PublicEndpointPaths.PUBLIC_AUTH_ONBOARDING_ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/webhook/**", "/internal/jobs/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())

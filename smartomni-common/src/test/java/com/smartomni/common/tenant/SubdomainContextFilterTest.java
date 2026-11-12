@@ -153,4 +153,68 @@ class SubdomainContextFilterTest {
         protectedReq.setRequestURI("/api/v1/products");
         assertFalse(filter.shouldNotFilter(protectedReq));
     }
+
+    @Test
+    @DisplayName("Trích xuất subdomain từ lvh.me (có và không có port) trong môi trường local dev")
+    void testExtractFromLvhMe() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Host", "abc-shop.lvh.me:8085");
+
+        AtomicReference<String> capturedSubdomain = new AtomicReference<>();
+        filter.doFilter(request, new MockHttpServletResponse(), (req, res) -> {
+            capturedSubdomain.set(TenantContext.getCurrentSubdomain());
+        });
+
+        assertEquals("abc-shop", capturedSubdomain.get());
+        assertNull(TenantContext.getCurrentSubdomain());
+    }
+
+    @Test
+    @DisplayName("Tra cứu DB từ subdomain và nạp tenantId cùng subscriptionPlan (PRO) vào TenantContext")
+    void testResolvesTenantIdAndPlanFromSubdomain() throws Exception {
+        TenantPlanResolver resolver = org.mockito.Mockito.mock(TenantPlanResolver.class);
+        org.mockito.Mockito.when(resolver.findTenantBySubdomain("abc"))
+                .thenReturn(java.util.Optional.of(new TenantPlanResolver.TenantLookupResult(42L, "abc", "active", "PRO")));
+
+        SubdomainContextFilter dbFilter = new SubdomainContextFilter(tenantProperties, resolver);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Host", "abc.lvh.me:8085");
+
+        AtomicReference<Long> capturedTenantId = new AtomicReference<>();
+        AtomicReference<String> capturedPlan = new AtomicReference<>();
+        dbFilter.doFilter(request, new MockHttpServletResponse(), (req, res) -> {
+            capturedTenantId.set(TenantContext.getTenantId());
+            capturedPlan.set(TenantContext.getSubscriptionPlan());
+        });
+
+        assertEquals(42L, capturedTenantId.get());
+        assertEquals("PRO", capturedPlan.get());
+        assertNull(TenantContext.getTenantId(), "TenantId phải được clear sau khi kết thúc request");
+        assertNull(TenantContext.getSubscriptionPlan(), "SubscriptionPlan phải được clear sau khi kết thúc request");
+    }
+
+    @Test
+    @DisplayName("Nạp subscriptionPlan (FREE) theo tenantId khi request đã có JWT nhưng chưa có Host subdomain")
+    void testResolvesPlanByTenantIdWhenAlreadyAuthenticated() throws Exception {
+        TenantPlanResolver resolver = org.mockito.Mockito.mock(TenantPlanResolver.class);
+        org.mockito.Mockito.when(resolver.findTenantById(7L))
+                .thenReturn(java.util.Optional.of(new TenantPlanResolver.TenantLookupResult(7L, "free-shop", "active", "FREE")));
+
+        TenantContext.setTenantId(7L);
+        SubdomainContextFilter dbFilter = new SubdomainContextFilter(tenantProperties, resolver);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Host", "localhost:8080");
+
+        AtomicReference<String> capturedPlan = new AtomicReference<>();
+        AtomicReference<String> capturedSubdomain = new AtomicReference<>();
+        dbFilter.doFilter(request, new MockHttpServletResponse(), (req, res) -> {
+            capturedPlan.set(TenantContext.getSubscriptionPlan());
+            capturedSubdomain.set(TenantContext.getCurrentSubdomain());
+        });
+
+        assertEquals("FREE", capturedPlan.get());
+        assertEquals("free-shop", capturedSubdomain.get());
+        assertEquals(7L, TenantContext.getTenantId(), "TenantId ban đầu từ JWT không bị filter xóa");
+        assertNull(TenantContext.getSubscriptionPlan());
+    }
 }

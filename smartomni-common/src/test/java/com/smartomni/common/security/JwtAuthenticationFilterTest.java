@@ -128,4 +128,29 @@ class JwtAuthenticationFilterTest {
         verify(tokenBlacklistValidator, never()).isBlacklisted(anyString());
         assertNull(SecurityContextHolder.getContext().getAuthentication());
     }
+
+    @Test
+    @DisplayName("shouldNotFilter bỏ qua /api/v1/auth/** (trừ change-password), /api/v1/tenants/onboarding và /error")
+    void testShouldNotFilter_PublicAuthOnboardingAndErrorPaths() throws Exception {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplate);
+
+        MockHttpServletRequest loginRequest = new MockHttpServletRequest("POST", "/api/v1/auth/login");
+        loginRequest.addHeader("Authorization", "Bearer stale.locked.token");
+        MockHttpServletRequest onboardingRequest = new MockHttpServletRequest("POST", "/api/v1/tenants/onboarding");
+        MockHttpServletRequest errorRequest = new MockHttpServletRequest("GET", "/error");
+        MockHttpServletRequest changePasswordRequest = new MockHttpServletRequest("POST", "/api/v1/auth/change-password");
+        MockHttpServletRequest protectedRequest = new MockHttpServletRequest("GET", "/api/v1/products");
+
+        assertTrue(filter.shouldNotFilter(loginRequest));
+        assertTrue(filter.shouldNotFilter(onboardingRequest));
+        assertTrue(filter.shouldNotFilter(errorRequest));
+        assertFalse(filter.shouldNotFilter(changePasswordRequest));
+        assertFalse(filter.shouldNotFilter(protectedRequest));
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(loginRequest, response, filterChain);
+        verify(filterChain, times(1)).doFilter(loginRequest, response);
+        verify(tokenBlacklistValidator, never()).isBlacklisted(anyString());
+        verify(jwtTokenProvider, never()).validateToken(anyString());
+    }
 }

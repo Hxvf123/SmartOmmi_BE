@@ -41,6 +41,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return PublicEndpointPaths.isBypassedForJwtFilter(request);
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request,
                                      HttpServletResponse response,
                                      FilterChain filterChain) throws ServletException, IOException {
@@ -71,8 +76,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 TenantContext.setCurrentUserId(userId);
                 TenantContext.setCurrentRole(role);
-                TenantContext.setTenantId(tenantId);
-                TenantContext.setCurrentSubdomain(subdomain);
+                if (tenantId != null) {
+                    TenantContext.setTenantId(tenantId);
+                }
+                if (subdomain != null && !subdomain.isBlank()) {
+                    TenantContext.setCurrentSubdomain(subdomain);
+                }
 
                 var authentication = new UsernamePasswordAuthenticationToken(
                         userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));

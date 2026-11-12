@@ -20,6 +20,7 @@ public class TenantProfileResponse {
     private String tenantId;
     private String companyName;
     private String subdomain;
+    private String tenantUrl;
     private String status;
     private String contactEmail;
     private String contactPhone;

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +31,21 @@ class DomainServiceBlacklistIntegrationTest {
         @GetMapping("/api/v1/catalog/products")
         public String getProducts() {
             return "products-data";
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/api/v1/auth/login")
+        public String login() {
+            return "login-ok";
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/api/v1/tenants/onboarding")
+        public String onboarding() {
+            return "onboarding-ok";
+        }
+
+        @GetMapping("/error")
+        public String error() {
+            return "error-ok";
         }
     }
 
@@ -77,5 +93,21 @@ class DomainServiceBlacklistIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(content().string("products-data"));
+    }
+
+    @Test
+    @DisplayName("ServiceSecurityAutoConfiguration cho phép truy cập /api/v1/auth/**, /api/v1/tenants/onboarding và /error không cần Token")
+    void testPublicRoutesPermittedWithoutToken() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("login-ok"));
+
+        mockMvc.perform(post("/api/v1/tenants/onboarding"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("onboarding-ok"));
+
+        mockMvc.perform(get("/error"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("error-ok"));
     }
 }

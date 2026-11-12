@@ -8,7 +8,10 @@ import com.smartomni.catalog.repository.ProductSkuRepository;
 import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.exception.ResourceNotFoundException;
 import com.smartomni.common.tenant.TenantContext;
-import lombok.RequiredArgsConstructor;
+import com.smartomni.common.tenant.TenantPlanResolver;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,16 +24,45 @@ import java.util.List;
  * UC-42 (upsert logic dung chung) - FR-085
  */
 @Service
-@RequiredArgsConstructor
 public class ProductService {
+
+    public static final int FREE_PLAN_MAX_SKUS = 100;
 
     private final ProductRepository productRepository;
     private final ProductSkuRepository skuRepository;
-    // private final FeatureFlagServiceClient featureFlagClient; // TODO: kiem tra gioi han SKU (FR-020)
+    private final TenantPlanResolver tenantPlanResolver;
+
+    public ProductService(ProductRepository productRepository, ProductSkuRepository skuRepository) {
+        this(productRepository, skuRepository, new TenantPlanResolver((javax.sql.DataSource) null));
+    }
+
+    public ProductService(ProductRepository productRepository,
+                          ProductSkuRepository skuRepository,
+                          TenantPlanResolver tenantPlanResolver) {
+        this.productRepository = productRepository;
+        this.skuRepository = skuRepository;
+        this.tenantPlanResolver = tenantPlanResolver != null
+                ? tenantPlanResolver
+                : new TenantPlanResolver((javax.sql.DataSource) null);
+    }
+
+    @Autowired
+    public ProductService(ProductRepository productRepository,
+                          ProductSkuRepository skuRepository,
+                          ObjectProvider<TenantPlanResolver> tenantPlanResolverProvider) {
+        this(productRepository, skuRepository,
+                tenantPlanResolverProvider != null ? tenantPlanResolverProvider.getIfAvailable() : null);
+    }
 
     @Transactional
     public Product createProduct(CreateProductRequest request) {
         Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new BusinessException("Không tìm thấy thông tin tenant trong context", HttpStatus.UNAUTHORIZED, "TENANT_REQUIRED");
+        }
+
+        // FR-020: kiem tra gioi han SKU theo goi dich vu (Free toi da 100 SKU, Pro khong gioi han)
+        assertSkuQuotaNotExceeded(tenantId, request.getSkus() != null ? request.getSkus().size() : 0);
 
         // FR-019: kiem tra SKU trung trong pham vi Tenant
         for (var skuReq : request.getSkus()) {
@@ -38,8 +70,6 @@ public class ProductService {
                 throw new BusinessException("SKU '" + skuReq.getSkuCode() + "' da ton tai trong he thong");
             }
         }
-
-        // TODO FR-020: goi featureFlagClient.assertSkuLimitNotExceeded(tenantId, request.getSkus().size())
 
         Product product = new Product();
         product.setTenantId(tenantId);
@@ -90,5 +120,18 @@ public class ProductService {
     @Transactional(readOnly = true)
     public Page<Product> listProducts(Pageable pageable) {
         return productRepository.findByTenantId(TenantContext.getTenantId(), pageable);
+    }
+
+    private void assertSkuQuotaNotExceeded(Long tenantId, int incomingSkus) {
+        if (TenantContext.isSuperAdmin()) {
+            return;
+        }
+        String plan = tenantPlanResolver.resolveSubscriptionPlan(tenantId);
+        if ("FREE".equalsIgnoreCase(plan)) {
+            long currentSkuCount = skuRepository.countByTenantId(tenantId);
+            if (currentSkuCount >= FREE_PLAN_MAX_SKUS || (currentSkuCount + incomingSkus) > FREE_PLAN_MAX_SKUS) {
+                throw new BusinessException("Gói Free chỉ hỗ trợ tối đa 100 SKU.", HttpStatus.BAD_REQUEST, "SKU_LIMIT_EXCEEDED");
+            }
+        }
     }
 }

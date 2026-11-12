@@ -19,6 +19,7 @@ import com.smartomni.tenant.repository.TenantRepository;
 import com.smartomni.tenant.repository.UserRepository;
 import com.smartomni.tenant.service.TenantService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -47,6 +48,9 @@ public class TenantServiceImpl implements TenantService {
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
     private final TenantProperties tenantProperties;
+
+    @Value("${app.domain-pattern:https://{slug}.smartomni.vn}")
+    private String domainPattern = "https://{slug}.smartomni.vn";
 
     // In-memory persistent cache for tenant storefront configurations
     private final Map<Long, StorefrontConfigRequest> storefrontConfigMap = new ConcurrentHashMap<>();
@@ -429,6 +433,7 @@ public class TenantServiceImpl implements TenantService {
                 .tenantId(tenant.getTenantId())
                 .companyName(tenant.getName())
                 .subdomain(tenant.getSubdomain())
+                .tenantUrl(buildTenantUrl(tenant.getSubdomain()))
                 .status(tenant.getStatus() != null ? tenant.getStatus().name() : "ACTIVE")
                 .contactEmail(contactEmail)
                 .contactPhone(contactPhone)
@@ -515,5 +520,19 @@ public class TenantServiceImpl implements TenantService {
                 .address(address)
                 .status(tenant.getStatus() != null ? tenant.getStatus().name() : "ACTIVE")
                 .build();
+    }
+
+    private String buildTenantUrl(String subdomain) {
+        if (subdomain == null || subdomain.isBlank()) {
+            return null;
+        }
+        String pattern = (domainPattern != null && !domainPattern.isBlank())
+                ? domainPattern.trim()
+                : "https://{slug}.smartomni.vn";
+        String cleanSlug = subdomain.trim().toLowerCase();
+        if (pattern.contains("{slug}")) {
+            return pattern.replace("{slug}", cleanSlug);
+        }
+        return "https://" + cleanSlug + ".smartomni.vn";
     }
 }

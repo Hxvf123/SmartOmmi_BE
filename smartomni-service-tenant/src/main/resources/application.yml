@@ -51,3 +51,6 @@ smartomni:
       - www
       - static
       - mail
+
+app:
+  domain-pattern: ${APP_DOMAIN_PATTERN:https://{slug}.smartomni.vn}

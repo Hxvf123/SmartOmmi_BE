@@ -6,7 +6,12 @@ import com.smartomni.catalog.entity.Product;
 import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.persistence.RlsSession;
 import com.smartomni.common.security.JwtTokenProvider;
+import com.smartomni.common.tenant.SubdomainContextFilter;
 import com.smartomni.common.tenant.TenantContext;
+import com.smartomni.common.tenant.TenantPlanResolver;
+import com.smartomni.common.tenant.TenantProperties;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import com.smartomni.inventory.entity.InventoryOutboxEvent;
 import com.smartomni.order.entity.Order;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
@@ -31,6 +36,8 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import javax.sql.DataSource;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -592,5 +599,80 @@ class DatabaseMigrationTest {
             assertEquals(1, count(admin,
                     "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='products' AND column_name='id' AND data_type='integer'"));
         }
+    }
+
+    @Test
+    void subdomainContextFilterResolvesTenantPlanAndEnforcesPostgresRls() throws Exception {
+        String url = newDatabase();
+        try (var context = boot(url)) {
+            try (Connection admin = connect(url, "postgres")) {
+                execute(admin, "INSERT INTO subscription_plans(name, max_marketplace_connections, max_skus) VALUES ('FREE', 1, 100), ('PRO', 10, 10000)");
+                execute(admin, "INSERT INTO tenants(name, subdomain, plan_id, status) VALUES "
+                        + "('ABC Store', 'abc', 2, 'active'), "
+                        + "('Free Shop', 'free-shop', 1, 'active')");
+                execute(admin, "INSERT INTO products(tenant_id, name) VALUES (1, 'Pro Exclusive'), (2, 'Free Item')");
+            }
+
+            DataSource dataSource = context.getBean(DataSource.class);
+            TransactionTemplate transactions = context.getBean(TransactionTemplate.class);
+            EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(
+                    context.getBean(EntityManagerFactory.class));
+            SubdomainContextFilter filter = new SubdomainContextFilter(
+                    new TenantProperties(),
+                    new TenantPlanResolver(dataSource));
+
+            assertSubdomainFilterScope(filter, transactions, em, "abc.lvh.me:8085", "abc", 1L, "PRO", "Pro Exclusive");
+            assertSubdomainFilterScope(filter, transactions, em, "free-shop.localhost:8085", "free-shop", 2L, "FREE", "Free Item");
+            assertSubdomainFilterScope(filter, transactions, em, "abc.smartomni.vn", "abc", 1L, "PRO", "Pro Exclusive");
+        }
+    }
+
+    private static void assertSubdomainFilterScope(SubdomainContextFilter filter,
+                                                   TransactionTemplate transactions,
+                                                   EntityManager em,
+                                                   String hostHeader,
+                                                   String expectedSubdomain,
+                                                   Long expectedTenantId,
+                                                   String expectedPlan,
+                                                   String expectedProductName) throws Exception {
+        TenantContext.clear();
+        HttpServletRequest request = (HttpServletRequest) Proxy.newProxyInstance(
+                DatabaseMigrationTest.class.getClassLoader(),
+                new Class<?>[]{HttpServletRequest.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getHeader" -> "Host".equalsIgnoreCase((String) args[0]) ? hostHeader : null;
+                    case "getServerName" -> hostHeader.split(":")[0];
+                    case "getRequestURI", "getServletPath" -> "/api/v1/products";
+                    case "getMethod" -> "GET";
+                    case "getDispatcherType" -> jakarta.servlet.DispatcherType.REQUEST;
+                    default -> {
+                        Class<?> rt = method.getReturnType();
+                        if (rt == boolean.class) yield false;
+                        if (rt == int.class) yield 0;
+                        if (rt == long.class) yield 0L;
+                        yield null;
+                    }
+                });
+        HttpServletResponse response = (HttpServletResponse) Proxy.newProxyInstance(
+                DatabaseMigrationTest.class.getClassLoader(),
+                new Class<?>[]{HttpServletResponse.class},
+                (proxy, method, args) -> method.getReturnType() == boolean.class ? false : null);
+
+        List<String> visibleProducts = new ArrayList<>();
+        filter.doFilter(request, response, (req, res) -> {
+            assertEquals(expectedSubdomain, TenantContext.getCurrentSubdomain());
+            assertEquals(expectedTenantId, TenantContext.getTenantId());
+            assertEquals(expectedPlan, TenantContext.getSubscriptionPlan());
+
+            transactions.executeWithoutResult(status -> {
+                List<Product> products = em.createQuery("from Product", Product.class).getResultList();
+                products.forEach(p -> visibleProducts.add(p.getName()));
+            });
+        });
+
+        assertEquals(List.of(expectedProductName), visibleProducts);
+        assertNull(TenantContext.getTenantId());
+        assertNull(TenantContext.getSubscriptionPlan());
+        assertNull(TenantContext.getCurrentSubdomain());
     }
 }

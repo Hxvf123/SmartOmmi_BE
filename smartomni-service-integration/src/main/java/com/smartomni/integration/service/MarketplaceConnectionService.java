@@ -22,6 +22,7 @@ public class MarketplaceConnectionService {
     private final MarketplaceConnectionRepository connectionRepository;
     private final AesEncryptionService encryptionService;
     private final ProductSyncService productSyncService;
+    private final MarketplaceQuotaValidator quotaValidator;
 
     @Transactional
     public MarketplaceConnection connect(ConnectMarketplaceRequest request) {
@@ -37,6 +38,9 @@ public class MarketplaceConnectionService {
             throw new BusinessException("Use the Shopee authorization flow (/api/v1/marketplace-connections/shopee)",
                     HttpStatus.BAD_REQUEST, "SHOPEE_USE_AUTHORIZATION_FLOW");
         }
+
+        long activeCount = connectionRepository.countByTenantIdAndStatusNot(tenantId, MarketplaceConnection.ConnectionStatus.DISCONNECTED);
+        quotaValidator.assertCanConnect(tenantId, activeCount);
 
         MarketplaceConnection connection = connectionRepository
                 .findByTenantIdAndPlatform(tenantId, platform)

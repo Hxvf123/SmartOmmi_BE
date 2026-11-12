@@ -2,10 +2,10 @@ package com.smartomni.tenant.config;
 
 import com.smartomni.common.security.JwtAuthenticationFilter;
 import com.smartomni.common.security.JwtTokenProvider;
+import com.smartomni.common.security.PublicEndpointPaths;
 import com.smartomni.common.security.TokenBlacklistValidator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -36,9 +36,9 @@ public class SecurityConfig {
                     UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers(PublicEndpointPaths.PUBLIC_AUTH_ONBOARDING_ERROR).permitAll()
                 .requestMatchers(
                         "/api/v1/tenants/check-subdomain",
-                        "/api/v1/tenants/onboarding",
                         "/api/v1/tenants/public/**",
                         "/actuator/**"
                 ).permitAll()

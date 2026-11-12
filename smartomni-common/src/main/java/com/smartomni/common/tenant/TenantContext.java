@@ -12,6 +12,7 @@ public class TenantContext {
     private static final ThreadLocal<String> CURRENT_ROLE = new ThreadLocal<>();
     private static final ThreadLocal<Long> CURRENT_USER = new ThreadLocal<>();
     private static final ThreadLocal<String> CURRENT_SUBDOMAIN = new ThreadLocal<>();
+    private static final ThreadLocal<String> CURRENT_SUBSCRIPTION_PLAN = new ThreadLocal<>();
 
     private TenantContext() {
     }
@@ -48,28 +49,50 @@ public class TenantContext {
         return CURRENT_SUBDOMAIN.get();
     }
 
+    public static void setSubscriptionPlan(String subscriptionPlan) {
+        CURRENT_SUBSCRIPTION_PLAN.set(subscriptionPlan);
+    }
+
+    public static String getSubscriptionPlan() {
+        return CURRENT_SUBSCRIPTION_PLAN.get();
+    }
+
     public static boolean isSuperAdmin() {
         return "SUPER_ADMIN".equalsIgnoreCase(CURRENT_ROLE.get());
     }
 
     /** Restore the previous context after background work, including exceptions. */
     public static Scope openScope(Long tenantId, String role, Long userId) {
-        return openScope(tenantId, role, userId, null);
+        return openScope(tenantId, role, userId, null, null);
     }
 
     public static Scope openScope(Long tenantId, String role, Long userId, String subdomain) {
-        Scope scope = new Scope(getTenantId(), getCurrentRole(), getCurrentUserId(), getCurrentSubdomain());
+        return openScope(tenantId, role, userId, subdomain, null);
+    }
+
+    public static Scope openScope(Long tenantId, String role, Long userId, String subdomain, String subscriptionPlan) {
+        Scope scope = new Scope(
+                getTenantId(),
+                getCurrentRole(),
+                getCurrentUserId(),
+                getCurrentSubdomain(),
+                getSubscriptionPlan());
         clear();
         setTenantId(tenantId);
         setCurrentRole(role);
         setCurrentUserId(userId);
         setCurrentSubdomain(subdomain);
+        setSubscriptionPlan(subscriptionPlan);
         return scope;
     }
 
-    public record Scope(Long tenantId, String role, Long userId, String subdomain) implements AutoCloseable {
+    public record Scope(Long tenantId, String role, Long userId, String subdomain, String subscriptionPlan) implements AutoCloseable {
         public Scope(Long tenantId, String role, Long userId) {
-            this(tenantId, role, userId, null);
+            this(tenantId, role, userId, null, null);
+        }
+
+        public Scope(Long tenantId, String role, Long userId, String subdomain) {
+            this(tenantId, role, userId, subdomain, null);
         }
 
         @Override
@@ -79,6 +102,7 @@ public class TenantContext {
             setCurrentRole(role);
             setCurrentUserId(userId);
             setCurrentSubdomain(subdomain);
+            setSubscriptionPlan(subscriptionPlan);
         }
     }
 
@@ -88,5 +112,6 @@ public class TenantContext {
         CURRENT_ROLE.remove();
         CURRENT_USER.remove();
         CURRENT_SUBDOMAIN.remove();
+        CURRENT_SUBSCRIPTION_PLAN.remove();
     }
 }

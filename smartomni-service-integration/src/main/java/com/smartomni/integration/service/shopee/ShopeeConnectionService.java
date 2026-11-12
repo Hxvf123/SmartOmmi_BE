@@ -13,10 +13,12 @@ import com.smartomni.integration.dto.shopee.ShopeeCallbackRequest;
 import com.smartomni.integration.dto.shopee.ShopeeConnectionDto;
 import com.smartomni.integration.entity.MarketplaceConnection;
 import com.smartomni.integration.entity.MarketplaceConnection.ConnectionStatus;
+import com.smartomni.integration.service.MarketplaceQuotaValidator;
 import com.smartomni.integration.service.shopee.ShopeeConnectionStore.ConsumedState;
 import com.smartomni.integration.service.shopee.ShopeeConnectionStore.LinkRequest;
 import com.smartomni.integration.service.tiktok.TokenCipher;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -51,6 +53,7 @@ public class ShopeeConnectionService {
     private final ShopeeOpenApiClient openApi;
     private final TokenCipher cipher;
     private final Clock clock;
+    private final MarketplaceQuotaValidator quotaValidator;
     private final SecureRandom random = new SecureRandom();
 
     public ShopeeConnectionService(ShopeeProperties properties,
@@ -59,12 +62,27 @@ public class ShopeeConnectionService {
                                    ShopeeOpenApiClient openApi,
                                    TokenCipher cipher,
                                    @Qualifier("integrationBusinessClock") Clock clock) {
+        this(properties, store, authClient, openApi, cipher, clock,
+                new MarketplaceQuotaValidator((com.smartomni.common.tenant.TenantPlanResolver) null));
+    }
+
+    @Autowired
+    public ShopeeConnectionService(ShopeeProperties properties,
+                                   ShopeeConnectionStore store,
+                                   ShopeeAuthClient authClient,
+                                   ShopeeOpenApiClient openApi,
+                                   TokenCipher cipher,
+                                   @Qualifier("integrationBusinessClock") Clock clock,
+                                   MarketplaceQuotaValidator quotaValidator) {
         this.properties = properties;
         this.store = store;
         this.authClient = authClient;
         this.openApi = openApi;
         this.cipher = cipher;
         this.clock = clock;
+        this.quotaValidator = quotaValidator != null
+                ? quotaValidator
+                : new MarketplaceQuotaValidator((com.smartomni.common.tenant.TenantPlanResolver) null);
     }
 
     public ShopeeAuthorizationStartDto start() {
@@ -74,6 +92,7 @@ public class ShopeeConnectionService {
             throw new BusinessException("Shopee authorization is not configured",
                     HttpStatus.SERVICE_UNAVAILABLE, "SHOPEE_NOT_CONFIGURED");
         }
+        quotaValidator.assertCanConnect(actor.tenantId(), store.countActiveConnections(actor.tenantId()));
 
         String state = newState();
         Instant expiresAt = clock.instant().plus(properties.getStateTtl());
@@ -143,6 +162,7 @@ public class ShopeeConnectionService {
 
         MarketplaceConnection saved;
         try {
+            quotaValidator.assertCanConnect(actor.tenantId(), store.countActiveConnections(actor.tenantId()));
             saved = store.link(actor.tenantId(), consumed.connectionId(), link);
         } catch (DataIntegrityViolationException e) {
             throw error(HttpStatus.CONFLICT, "SHOPEE_SHOP_ALREADY_LINKED", "This Shopee shop is already linked to a SmartOmni tenant");

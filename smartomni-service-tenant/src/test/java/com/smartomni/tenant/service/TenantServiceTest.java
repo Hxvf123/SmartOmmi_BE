@@ -678,4 +678,47 @@ public class TenantServiceTest {
         assertThrows(ResourceNotFoundException.class, () ->
                 tenantService.getPublicStorefrontProfile("unknown-shop"));
     }
+
+    @Test
+    @DisplayName("onboardTenant: Trả về tenantUrl theo domain pattern mặc định (production) và dynamic dev pattern")
+    void testOnboardTenant_ReturnsDynamicTenantUrl() {
+        TenantOnboardingRequest request = TenantOnboardingRequest.builder()
+                .companyName("ABC Shop")
+                .subdomain("abc")
+                .adminEmail("owner@abc.vn")
+                .planType("PRO")
+                .build();
+
+        SubscriptionPlan proPlan = new SubscriptionPlan();
+        proPlan.setId(2L);
+        proPlan.setName("PRO");
+        proPlan.setMaxMarketplaceConnections(Integer.MAX_VALUE);
+        proPlan.setMaxSkus(Integer.MAX_VALUE);
+
+        when(tenantRepository.existsBySubdomain("abc")).thenReturn(false);
+        when(userRepository.findByEmail("owner@abc.vn")).thenReturn(Optional.empty());
+        when(subscriptionPlanRepository.findByName("PRO")).thenReturn(Optional.of(proPlan));
+        when(subscriptionPlanRepository.findById(2L)).thenReturn(Optional.of(proPlan));
+        when(featureFlagRepository.findByPlanIdAndFeatureKey(2L, "ai_features")).thenReturn(Optional.empty());
+        when(featureFlagRepository.save(any(PlanFeatureFlag.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded");
+        when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
+            Tenant t = inv.getArgument(0);
+            t.setId(15L);
+            return t;
+        });
+        when(userRepository.save(any(TenantUser.class))).thenAnswer(inv -> {
+            TenantUser u = inv.getArgument(0);
+            u.setId(99L);
+            return u;
+        });
+
+        TenantProfileResponse prodResp = tenantService.onboardTenant(request);
+        assertEquals("https://abc.smartomni.vn", prodResp.getTenantUrl());
+
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                tenantService, "domainPattern", "http://{slug}.lvh.me:8085");
+        TenantProfileResponse devResp = tenantService.onboardTenant(request);
+        assertEquals("http://abc.lvh.me:8085", devResp.getTenantUrl());
+    }
 }

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,6 +28,21 @@ class AuthSecurityBlacklistTest {
         @GetMapping("/api/v1/users/profile")
         public String getProfile() {
             return "user-profile-data";
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/api/v1/auth/login")
+        public String login() {
+            return "login-ok";
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/api/v1/tenants/onboarding")
+        public String onboarding() {
+            return "onboarding-ok";
+        }
+
+        @GetMapping("/error")
+        public String error() {
+            return "error-ok";
         }
     }
 
@@ -67,5 +83,21 @@ class AuthSecurityBlacklistTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(content().string("user-profile-data"));
+    }
+
+    @Test
+    @DisplayName("Cho phép truy cập công khai không cần token tới /api/v1/auth/login, /api/v1/tenants/onboarding và /error")
+    void testPublicRoutesPermittedWithoutToken() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("login-ok"));
+
+        mockMvc.perform(post("/api/v1/tenants/onboarding"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("onboarding-ok"));
+
+        mockMvc.perform(get("/error"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("error-ok"));
     }
 }

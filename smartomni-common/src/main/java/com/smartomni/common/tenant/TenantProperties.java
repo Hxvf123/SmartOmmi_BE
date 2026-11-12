@@ -21,6 +21,13 @@ public class TenantProperties {
     private String baseDomain = "smartomni.vn";
 
     /**
+     * Cac base domain duoc ho tro de boc tach subdomain tu Host header (prod & dev).
+     */
+    private Set<String> supportedBaseDomains = new LinkedHashSet<>(Set.of(
+            "smartomni.vn", "lvh.me", "localhost"
+    ));
+
+    /**
      * Danh sach cac subdomain cam / danh rieng cua he thong khong duoc phep tao tenant
      * va khong duoc phep route nhu tenant binh thuong.
      */
