@@ -170,7 +170,7 @@ class DatabaseMigrationTest {
             for (var future : futures) {
                 applied += future.get(60, java.util.concurrent.TimeUnit.SECONDS);
             }
-            assertEquals(16, applied);
+            assertEquals(17, applied);
         } finally {
             start.countDown();
             executor.shutdownNow();
@@ -185,7 +185,8 @@ class DatabaseMigrationTest {
                     "SELECT count(*) FROM pg_type WHERE typnamespace='public'::regnamespace AND typtype='e'"));
             assertTrue(count(admin,
                     "SELECT count(*) FROM pg_constraint WHERE connamespace='public'::regnamespace AND contype='f'") > 50);
-            assertEquals(16, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+            assertEquals(17, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+            assertEquals(1, count(admin, "SELECT count(*) FROM information_schema.columns WHERE table_name='users' AND column_name='token_version' AND is_nullable='NO'"));
             execute(admin, Files.readString(Path.of("..", "scripts", "db", "verify-schema.sql")));
         }
         try (Connection app = connect(url, "smartomni_app")) {
@@ -532,7 +533,7 @@ class DatabaseMigrationTest {
         assertThrows(FlywayException.class, invalid::migrate);
         try (Connection admin = connect(url, "postgres")) {
             assertEquals(0, count(admin, "SELECT count(*) FROM pg_tables WHERE tablename='should_rollback'"));
-            assertEquals(16, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+            assertEquals(17, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
         }
     }
 
@@ -556,7 +557,7 @@ class DatabaseMigrationTest {
         Flyway baseline = Flyway.configure().dataSource(url, "smartomni_migrator", TEST_PASSWORD)
                 .defaultSchema("public").baselineVersion("5").load();
         baseline.baseline();
-        assertEquals(11, flyway(url).migrate().migrationsExecuted);
+        assertEquals(12, flyway(url).migrate().migrationsExecuted);
         try (var context = boot(url)) {
             assertNotNull(context.getBean(EntityManagerFactory.class));
         }

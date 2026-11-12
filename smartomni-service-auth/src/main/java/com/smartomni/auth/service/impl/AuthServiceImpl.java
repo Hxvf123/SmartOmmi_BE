@@ -100,7 +100,7 @@ public class AuthServiceImpl implements AuthService {
         User savedUser = userRepository.save(user);
         log.info("Successfully registered new standard user ID: {}, email: {}", savedUser.getId(), savedUser.getEmail());
 
-        String accessToken = jwtTokenProvider.generateToken(savedUser.getId(), savedUser.getRole().name(), null, null);
+        String accessToken = jwtTokenProvider.generateToken(savedUser.getId(), savedUser.getRole().name(), null, null, savedUser.getTokenVersion());
         String refreshToken = storeRefreshTokenInRedis(savedUser.getId());
 
         AuthResponse.UserInfo userInfo = AuthResponse.UserInfo.builder()
@@ -216,7 +216,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // Sinh JWT Access Token chứa user_id, role, tenant_id, subdomain
-        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain);
+        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain, user.getTokenVersion());
 
         // Sinh và lưu Refresh Token vào Redis
         String refreshToken = storeRefreshTokenInRedis(user.getId());
@@ -283,7 +283,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Cấp Access Token mới
-        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain);
+        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain, user.getTokenVersion());
 
         // Rotate Refresh Token: Xóa token cũ và lưu token mới
         stringRedisTemplate.delete(REDIS_PREFIX_REFRESH + refreshToken);

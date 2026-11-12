@@ -62,6 +62,10 @@ public class User extends BaseTenantEntity {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Long tokenVersion = 0L;
+
     public enum UserRole {
         SUPER_ADMIN,
         ADMIN,

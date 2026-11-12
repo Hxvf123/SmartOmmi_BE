@@ -63,4 +63,10 @@ class JwtTokenProviderTest {
         assertNull(jwtTokenProvider.getTenantId(token));
         assertNull(jwtTokenProvider.getSubdomain(token));
     }
+
+    @Test
+    void versionedTokenCarriesCurrentVersion() {
+        String token = jwtTokenProvider.generateToken(42L, "MANAGER", 7L, "shop", 3L);
+        assertEquals(3L, jwtTokenProvider.getTokenVersion(token));
+    }
 }
