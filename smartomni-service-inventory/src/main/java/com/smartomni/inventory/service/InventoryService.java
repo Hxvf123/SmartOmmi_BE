@@ -39,7 +39,7 @@ public class InventoryService {
     @Retryable(retryFor = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     @Transactional
     public void deductStock(Long skuId, int quantity) {
-        Inventory inventory = inventoryRepository.findBySkuId(skuId)
+        Inventory inventory = inventoryRepository.findByTenantIdAndSkuId(requireTenantId(), skuId)
                 .orElseThrow(() -> new BusinessException("Khong tim thay ton kho cho SKU: " + skuId));
 
         if (inventory.getQuantityOnHand() < quantity) {
@@ -55,14 +55,8 @@ public class InventoryService {
 
     @Transactional
     public void adjustStock(Long skuId, int newQuantity) {
-        Long tenantId = TenantContext.getTenantId();
-        Inventory inventory = inventoryRepository.findBySkuId(skuId)
-                .orElseGet(() -> {
-                    Inventory inv = new Inventory();
-                    inv.setTenantId(tenantId);
-                    inv.setSkuId(skuId);
-                    return inv;
-                });
+        Inventory inventory = inventoryRepository.findByTenantIdAndSkuId(requireTenantId(), skuId)
+                .orElseThrow(() -> new BusinessException("Khong tim thay ton kho cho SKU: " + skuId));
         inventory.setQuantityOnHand(newQuantity);
         inventoryRepository.save(inventory);
 
@@ -71,15 +65,8 @@ public class InventoryService {
 
     @Transactional
     public void restock(Long skuId, int quantity) {
-        Long tenantId = TenantContext.getTenantId();
-        Inventory inventory = inventoryRepository.findBySkuId(skuId)
-                .orElseGet(() -> {
-                    Inventory inv = new Inventory();
-                    inv.setTenantId(tenantId);
-                    inv.setSkuId(skuId);
-                    inv.setQuantityOnHand(0);
-                    return inv;
-                });
+        Inventory inventory = inventoryRepository.findByTenantIdAndSkuId(requireTenantId(), skuId)
+                .orElseThrow(() -> new BusinessException("Khong tim thay ton kho cho SKU: " + skuId));
         inventory.setQuantityOnHand(inventory.getQuantityOnHand() + quantity);
         inventoryRepository.save(inventory);
 
@@ -96,5 +83,13 @@ public class InventoryService {
         event.setPlatform(InventoryOutboxEvent.Platform.SHOPEE);
         event.setQuantity(inventory.getQuantityOnHand());
         outboxEventRepository.save(event);
+    }
+
+    private Long requireTenantId() {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new BusinessException("Thieu thong tin tenant");
+        }
+        return tenantId;
     }
 }
