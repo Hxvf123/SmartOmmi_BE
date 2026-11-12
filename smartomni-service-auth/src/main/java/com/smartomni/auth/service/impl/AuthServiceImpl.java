@@ -494,7 +494,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void publishAccessState(User user) {
-        stringRedisTemplate.opsForValue().set(UserAccessState.key(user.getId()),
-                UserAccessState.active(user.getTokenVersion()));
+        if (!UserAccessState.publishActive(stringRedisTemplate, user.getId(), user.getTokenVersion())) {
+            throw new InvalidTokenException("Phiên đăng nhập đã bị thu hồi");
+        }
     }
 }

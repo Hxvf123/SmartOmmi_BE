@@ -72,6 +72,10 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(stringRedisTemplate.execute(
+                org.mockito.ArgumentMatchers.<org.springframework.data.redis.core.script.RedisScript<Long>>any(),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(1L);
 
         authService = new AuthServiceImpl(
                 userRepository,

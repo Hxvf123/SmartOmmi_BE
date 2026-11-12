@@ -14,6 +14,7 @@ import com.smartomni.auth.service.UserService;
 import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.exception.ResourceNotFoundException;
 import com.smartomni.common.persistence.RlsSession;
+import com.smartomni.common.security.UserAccessState;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -240,7 +241,7 @@ public class UserServiceImpl implements UserService {
                                                 UpdateUserStatusRequest request) {
         User caller = userRepository.findById(callerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Caller user not found"));
-        User target = userRepository.findById(targetUserId)
+        User target = userRepository.findByIdForUpdate(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Target user not found"));
 
         if (!"SUPER_ADMIN".equalsIgnoreCase(callerRole) &&
@@ -253,6 +254,14 @@ public class UserServiceImpl implements UserService {
             newStatus = User.UserStatus.valueOf(request.getStatus());
         } catch (Exception e) {
             throw new BusinessException("Trạng thái không hợp lệ", HttpStatus.BAD_REQUEST, "INVALID_STATUS");
+        }
+        if (target.getStatus() != newStatus) {
+            long nextVersion = target.getTokenVersion() + 1;
+            stringRedisTemplate.opsForValue().set(UserAccessState.key(targetUserId),
+                    newStatus == User.UserStatus.ACTIVE
+                            ? UserAccessState.active(nextVersion)
+                            : UserAccessState.disabled(nextVersion));
+            target.setTokenVersion(nextVersion);
         }
         target.setStatus(newStatus);
         User saved = userRepository.save(target);
@@ -278,7 +287,7 @@ public class UserServiceImpl implements UserService {
     public UserProfileResponse assignRoles(Long callerUserId, String callerRole, Long targetUserId, AssignRolesRequest request) {
         User caller = userRepository.findById(callerUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Caller user not found"));
-        User target = userRepository.findById(targetUserId)
+        User target = userRepository.findByIdForUpdate(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Target user not found"));
 
         // Tenant check
@@ -313,6 +322,10 @@ public class UserServiceImpl implements UserService {
         if (newRole == User.UserRole.SUPER_ADMIN) {
             throw new BusinessException("Không được gán role SUPER_ADMIN", HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
+        long nextVersion = target.getTokenVersion() + 1;
+        stringRedisTemplate.opsForValue().set(UserAccessState.key(targetUserId),
+                UserAccessState.active(nextVersion));
+        target.setTokenVersion(nextVersion);
         target.setRole(newRole);
         User saved = userRepository.save(target);
 
