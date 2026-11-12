@@ -77,12 +77,27 @@ class OrderLifecycleTest {
     @Test
     void updateStatusCanFindOwnTenantOrder() {
         TenantContext.setTenantId(TENANT_ID);
+        sampleOrder.setStatus(Order.OrderStatus.PENDING);
         when(orderRepository.findByIdAndTenantId(ORDER_ID, TENANT_ID)).thenReturn(Optional.of(sampleOrder));
         when(orderRepository.save(sampleOrder)).thenReturn(sampleOrder);
 
-        orderService.updateStatus(ORDER_ID, Order.OrderStatus.SHIPPED);
+        orderService.updateStatus(ORDER_ID, Order.OrderStatus.TO_SHIP);
 
         verify(orderRepository).save(sampleOrder);
+    }
+
+    @Test
+    void staffCannotForceCompletedOrTriggerSideEffects() {
+        TenantContext.setTenantId(TENANT_ID);
+        sampleOrder.setStatus(Order.OrderStatus.PENDING);
+        when(orderRepository.findByIdAndTenantId(ORDER_ID, TENANT_ID)).thenReturn(Optional.of(sampleOrder));
+
+        var error = assertThrows(com.smartomni.common.exception.BusinessException.class,
+                () -> orderService.updateStatus(ORDER_ID, Order.OrderStatus.COMPLETED));
+
+        assertEquals("INVALID_ORDER_STATUS_TRANSITION", error.getErrorCode());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(orderStatusHistoryRepository, sellerWalletLedgerRepository, inventoryServiceClient);
     }
 
     @Test

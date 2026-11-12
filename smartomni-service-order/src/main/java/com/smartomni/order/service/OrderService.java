@@ -4,6 +4,7 @@ import com.smartomni.common.dto.ProcessReturnRequest;
 import com.smartomni.common.dto.UpdateOrderTrackingRequest;
 import com.smartomni.common.dto.WebhookOrderPayload;
 import com.smartomni.common.exception.ResourceNotFoundException;
+import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.tenant.TenantContext;
 import com.smartomni.order.client.InventoryServiceClient;
 import com.smartomni.order.entity.Order;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -134,6 +136,12 @@ public class OrderService {
         Order.OrderStatus previousStatus = order.getStatus();
         if (previousStatus == newStatus) {
             return order;
+        }
+
+        if (source == OrderStatusHistory.OrderChangeSource.MANAGER
+                && (previousStatus != Order.OrderStatus.PENDING || newStatus != Order.OrderStatus.TO_SHIP)) {
+            throw new BusinessException("Nhân viên chỉ được chuyển PENDING sang TO_SHIP",
+                    HttpStatus.CONFLICT, "INVALID_ORDER_STATUS_TRANSITION");
         }
 
         if (!TiktokOrderStatusMapper.isValidTransition(previousStatus, newStatus)) {
