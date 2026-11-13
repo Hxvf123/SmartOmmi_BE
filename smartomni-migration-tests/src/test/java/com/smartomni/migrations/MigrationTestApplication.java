@@ -42,6 +42,10 @@ public class MigrationTestApplication {
         org.springframework.data.redis.core.StringRedisTemplate template = org.mockito.Mockito.mock(org.springframework.data.redis.core.StringRedisTemplate.class);
         org.springframework.data.redis.core.ValueOperations ops = org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
         org.mockito.Mockito.lenient().when(template.opsForValue()).thenReturn(ops);
+        org.mockito.Mockito.lenient().when(template.execute(
+                org.mockito.ArgumentMatchers.<org.springframework.data.redis.core.script.RedisScript<Long>>any(),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(1L);
         return template;
     }
 }

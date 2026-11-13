@@ -2,6 +2,7 @@ package com.smartomni.order.service;
 
 import com.smartomni.common.dto.ApiResponse;
 import com.smartomni.common.dto.WebhookOrderPayload;
+import com.smartomni.common.tenant.TenantContext;
 import com.smartomni.order.client.InventoryServiceClient;
 import com.smartomni.order.entity.Order;
 import com.smartomni.order.entity.OrderItem;
@@ -12,6 +13,7 @@ import com.smartomni.order.repository.OrderRepository;
 import com.smartomni.order.repository.OrderStatusHistoryRepository;
 import com.smartomni.order.repository.SellerWalletLedgerRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,8 +60,69 @@ class OrderLifecycleTest {
 
     private Order sampleOrder;
 
+    @AfterEach void clearTenantContext() { TenantContext.clear(); }
+
+    @Test
+    void updateStatusCannotTouchAnotherTenantOrder() {
+        TenantContext.setTenantId(2L);
+        when(orderRepository.findByIdAndTenantId(ORDER_ID, 2L)).thenReturn(Optional.empty());
+
+        assertThrows(com.smartomni.common.exception.ResourceNotFoundException.class,
+                () -> orderService.updateStatus(ORDER_ID, Order.OrderStatus.SHIPPED));
+
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(orderStatusHistoryRepository, sellerWalletLedgerRepository, inventoryServiceClient);
+    }
+
+    @Test
+    void updateStatusCanFindOwnTenantOrder() {
+        TenantContext.setTenantId(TENANT_ID);
+        sampleOrder.setStatus(Order.OrderStatus.PENDING);
+        when(orderRepository.findByIdAndTenantId(ORDER_ID, TENANT_ID)).thenReturn(Optional.of(sampleOrder));
+        when(orderRepository.save(sampleOrder)).thenReturn(sampleOrder);
+
+        orderService.updateStatus(ORDER_ID, Order.OrderStatus.TO_SHIP);
+
+        verify(orderRepository).save(sampleOrder);
+    }
+
+    @Test
+    void staffCannotForceCompletedOrTriggerSideEffects() {
+        TenantContext.setTenantId(TENANT_ID);
+        sampleOrder.setStatus(Order.OrderStatus.PENDING);
+        when(orderRepository.findByIdAndTenantId(ORDER_ID, TENANT_ID)).thenReturn(Optional.of(sampleOrder));
+
+        var error = assertThrows(com.smartomni.common.exception.BusinessException.class,
+                () -> orderService.updateStatus(ORDER_ID, Order.OrderStatus.COMPLETED));
+
+        assertEquals("INVALID_ORDER_STATUS_TRANSITION", error.getErrorCode());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(orderStatusHistoryRepository, sellerWalletLedgerRepository, inventoryServiceClient);
+    }
+
+    @Test
+    void trackingRequestCannotClaimAnotherTenant() {
+        var request = com.smartomni.common.dto.UpdateOrderTrackingRequest.builder()
+                .tenantId(2L).platform("TIKTOK_SHOP").platformOrderId(PLATFORM_ORDER_ID).build();
+
+        assertThrows(com.smartomni.common.exception.ResourceNotFoundException.class,
+                () -> orderService.updateOrderTracking(request));
+        verifyNoInteractions(orderRepository, inventoryServiceClient);
+    }
+
+    @Test
+    void returnRequestCannotClaimAnotherTenant() {
+        var request = com.smartomni.common.dto.ProcessReturnRequest.builder()
+                .tenantId(2L).platform("TIKTOK_SHOP").platformOrderId(PLATFORM_ORDER_ID).build();
+
+        assertThrows(com.smartomni.common.exception.ResourceNotFoundException.class,
+                () -> orderService.handleOrderReturn(request));
+        verifyNoInteractions(orderRepository, inventoryServiceClient);
+    }
+
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(TENANT_ID);
         sampleOrder = new Order();
         sampleOrder.setId(ORDER_ID);
         sampleOrder.setTenantId(TENANT_ID);
@@ -152,18 +215,19 @@ class OrderLifecycleTest {
     }
 
     @Test
-    @DisplayName("Đơn hàng đã giao bưu tá (courierScannedAt != null) bị huỷ: KHÔNG tự động hoàn kho trước giao")
+    @DisplayName("Từ chối hủy đơn đã giao bưu tá và không hoàn kho")
     void handleOrderStatusChange_cancelledAfterCourier_doesNotRestock() {
         sampleOrder.setStatus(Order.OrderStatus.SHIPPED);
         sampleOrder.setCourierScannedAt(Instant.now().minusSeconds(3600));
 
         when(orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(TENANT_ID, Order.Platform.TIKTOK_SHOP, PLATFORM_ORDER_ID))
                 .thenReturn(Optional.of(sampleOrder));
-        when(orderRepository.save(any(Order.class))).thenReturn(sampleOrder);
+        assertThrows(com.smartomni.common.exception.BusinessException.class,
+                () -> orderService.handleOrderStatusChange(TENANT_ID, "TIKTOK_SHOP", PLATFORM_ORDER_ID, "CANCELLED"));
 
-        Order updated = orderService.handleOrderStatusChange(TENANT_ID, "TIKTOK_SHOP", PLATFORM_ORDER_ID, "CANCELLED");
-
-        assertEquals(Order.OrderStatus.CANCELLED, updated.getStatus());
+        assertEquals(Order.OrderStatus.SHIPPED, sampleOrder.getStatus());
+        verify(orderRepository, never()).save(any());
+        verifyNoInteractions(orderStatusHistoryRepository, sellerWalletLedgerRepository);
         verify(inventoryServiceClient, never()).restock(anyLong(), anyInt());
     }
 

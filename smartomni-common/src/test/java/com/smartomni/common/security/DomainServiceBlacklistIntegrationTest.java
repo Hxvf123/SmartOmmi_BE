@@ -68,6 +68,9 @@ class DomainServiceBlacklistIntegrationTest {
     @MockBean
     private StringRedisTemplate stringRedisTemplate;
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private org.springframework.data.redis.core.ValueOperations<String, String> values;
+
     @Test
     @DisplayName("Domain service từ chối request khi token nằm trong Redis Blacklist (HTTP 401 hoặc 403)")
     void testDomainServiceRejectsBlacklistedToken() throws Exception {
@@ -88,6 +91,9 @@ class DomainServiceBlacklistIntegrationTest {
         when(jwtTokenProvider.getUserId(token)).thenReturn(10L);
         when(jwtTokenProvider.getRole(token)).thenReturn("ADMIN");
         when(jwtTokenProvider.getTenantId(token)).thenReturn(100L);
+        when(jwtTokenProvider.getTokenVersion(token)).thenReturn(0L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(values);
+        when(values.get(UserAccessState.key(10L))).thenReturn("ACTIVE:0");
 
         mockMvc.perform(get("/api/v1/catalog/products")
                         .header("Authorization", "Bearer " + token))

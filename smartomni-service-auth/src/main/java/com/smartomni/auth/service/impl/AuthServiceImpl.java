@@ -20,6 +20,7 @@ import com.smartomni.common.exception.InvalidTokenException;
 import com.smartomni.common.exception.ResourceNotFoundException;
 import com.smartomni.common.persistence.RlsSession;
 import com.smartomni.common.security.JwtTokenProvider;
+import com.smartomni.common.security.UserAccessState;
 import com.smartomni.common.tenant.TenantContext;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -100,7 +101,8 @@ public class AuthServiceImpl implements AuthService {
         User savedUser = userRepository.save(user);
         log.info("Successfully registered new standard user ID: {}, email: {}", savedUser.getId(), savedUser.getEmail());
 
-        String accessToken = jwtTokenProvider.generateToken(savedUser.getId(), savedUser.getRole().name(), null, null);
+        publishAccessState(savedUser);
+        String accessToken = jwtTokenProvider.generateToken(savedUser.getId(), savedUser.getRole().name(), null, null, savedUser.getTokenVersion());
         String refreshToken = storeRefreshTokenInRedis(savedUser.getId());
 
         AuthResponse.UserInfo userInfo = AuthResponse.UserInfo.builder()
@@ -216,7 +218,8 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // Sinh JWT Access Token chứa user_id, role, tenant_id, subdomain
-        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain);
+        publishAccessState(user);
+        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain, user.getTokenVersion());
 
         // Sinh và lưu Refresh Token vào Redis
         String refreshToken = storeRefreshTokenInRedis(user.getId());
@@ -283,7 +286,8 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Cấp Access Token mới
-        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain);
+        publishAccessState(user);
+        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getRole().name(), user.getTenantId(), resolvedSubdomain, user.getTokenVersion());
 
         // Rotate Refresh Token: Xóa token cũ và lưu token mới
         stringRedisTemplate.delete(REDIS_PREFIX_REFRESH + refreshToken);
@@ -486,6 +490,12 @@ public class AuthServiceImpl implements AuthService {
     private void setRlsContext(String name, String value) {
         if (entityManager != null && TransactionSynchronizationManager.isActualTransactionActive()) {
             RlsSession.set(entityManager, name, value);
+        }
+    }
+
+    private void publishAccessState(User user) {
+        if (!UserAccessState.publishActive(stringRedisTemplate, user.getId(), user.getTokenVersion())) {
+            throw new InvalidTokenException("Phiên đăng nhập đã bị thu hồi");
         }
     }
 }

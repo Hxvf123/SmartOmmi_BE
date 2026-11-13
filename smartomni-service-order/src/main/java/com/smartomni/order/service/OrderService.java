@@ -4,6 +4,8 @@ import com.smartomni.common.dto.ProcessReturnRequest;
 import com.smartomni.common.dto.UpdateOrderTrackingRequest;
 import com.smartomni.common.dto.WebhookOrderPayload;
 import com.smartomni.common.exception.ResourceNotFoundException;
+import com.smartomni.common.exception.BusinessException;
+import com.smartomni.common.tenant.TenantContext;
 import com.smartomni.order.client.InventoryServiceClient;
 import com.smartomni.order.entity.Order;
 import com.smartomni.order.entity.OrderItem;
@@ -18,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -101,11 +104,7 @@ public class OrderService {
 
                 // FR-027, FR-028: gọi Inventory Service trừ kho nếu đã map được internal skuId
                 if (itemPayload.getSkuId() != null && itemPayload.getQuantity() != null && itemPayload.getQuantity() > 0) {
-                    try {
-                        inventoryServiceClient.deductStock(itemPayload.getSkuId(), itemPayload.getQuantity());
-                    } catch (Exception ex) {
-                        log.error("Trừ kho thất bại cho SKU {}: {}", itemPayload.getSkuId(), ex.getMessage());
-                    }
+                    inventoryServiceClient.deductStock(itemPayload.getSkuId(), itemPayload.getQuantity());
                 }
             }
         }
@@ -116,7 +115,11 @@ public class OrderService {
      */
     @Transactional
     public Order updateStatus(Long orderId, Order.OrderStatus newStatus) {
-        Order order = orderRepository.findById(orderId)
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new ResourceNotFoundException("Đơn hàng không tồn tại: " + orderId);
+        }
+        Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Đơn hàng không tồn tại: " + orderId));
         return updateOrderStatus(order, newStatus, OrderStatusHistory.OrderChangeSource.MANAGER);
     }
@@ -135,8 +138,15 @@ public class OrderService {
             return order;
         }
 
+        if (source == OrderStatusHistory.OrderChangeSource.MANAGER
+                && (previousStatus != Order.OrderStatus.PENDING || newStatus != Order.OrderStatus.TO_SHIP)) {
+            throw new BusinessException("Nhân viên chỉ được chuyển PENDING sang TO_SHIP",
+                    HttpStatus.CONFLICT, "INVALID_ORDER_STATUS_TRANSITION");
+        }
+
         if (!TiktokOrderStatusMapper.isValidTransition(previousStatus, newStatus)) {
-            log.warn("Chuyển trạng thái bất thường từ {} sang {} cho orderId={}", previousStatus, newStatus, order.getId());
+            throw new BusinessException("Chuyển trạng thái không hợp lệ từ " + previousStatus + " sang " + newStatus,
+                    HttpStatus.CONFLICT, "INVALID_ORDER_STATUS_TRANSITION");
         }
 
         order.setStatus(newStatus);
@@ -179,7 +189,7 @@ public class OrderService {
         if (request == null) {
             throw new IllegalArgumentException("Request must not be null");
         }
-        Long tenantId = request.getTenantId();
+        Long tenantId = requireRequestTenant(request.getTenantId());
         Order.Platform platform = request.getPlatform() != null && !request.getPlatform().isBlank()
                 ? Order.Platform.valueOf(request.getPlatform().toUpperCase())
                 : Order.Platform.TIKTOK_SHOP;
@@ -199,11 +209,7 @@ public class OrderService {
         Order lastUpdatedOrder = null;
         for (String platformOrderId : orderIds) {
             Optional<Order> orderOpt;
-            if (tenantId != null && tenantId > 0) {
-                orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
-            } else {
-                orderOpt = orderRepository.findByPlatformAndPlatformOrderId(platform, platformOrderId);
-            }
+            orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
 
             if (orderOpt.isEmpty()) {
                 log.warn("Không tìm thấy đơn hàng để cập nhật tracking: tenantId={}, platform={}, orderId={}",
@@ -265,7 +271,7 @@ public class OrderService {
         if (request == null) {
             throw new IllegalArgumentException("ProcessReturnRequest must not be null");
         }
-        Long tenantId = request.getTenantId();
+        Long tenantId = requireRequestTenant(request.getTenantId());
         Order.Platform platform = request.getPlatform() != null && !request.getPlatform().isBlank()
                 ? Order.Platform.valueOf(request.getPlatform().toUpperCase())
                 : Order.Platform.TIKTOK_SHOP;
@@ -280,11 +286,7 @@ public class OrderService {
         }
 
         Optional<Order> orderOpt;
-        if (tenantId != null && tenantId > 0) {
-            orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
-        } else {
-            orderOpt = orderRepository.findByPlatformAndPlatformOrderId(platform, platformOrderId);
-        }
+        orderOpt = orderRepository.findByTenantIdAndPlatformAndPlatformOrderId(tenantId, platform, platformOrderId);
 
         if (orderOpt.isEmpty()) {
             log.warn("Không tìm thấy đơn hàng cho yêu cầu trả hàng: tenantId={}, platform={}, orderId={}",
@@ -392,14 +394,18 @@ public class OrderService {
         log.info("Tự động hoàn trả tồn kho cho đơn hàng CANCELLED id={}, itemsCount={}", order.getId(), items.size());
         for (OrderItem item : items) {
             if (item.getSkuId() != null && item.getQuantity() != null && item.getQuantity() > 0) {
-                try {
-                    inventoryServiceClient.restock(item.getSkuId(), item.getQuantity());
-                    log.info("Hoàn trả tồn kho thành công cho skuId={}, quantity={}", item.getSkuId(), item.getQuantity());
-                } catch (Exception ex) {
-                    log.error("Hoàn trả tồn kho thất bại cho SKU {}: {}", item.getSkuId(), ex.getMessage());
-                }
+                inventoryServiceClient.restock(item.getSkuId(), item.getQuantity());
+                log.info("Hoàn trả tồn kho thành công cho skuId={}, quantity={}", item.getSkuId(), item.getQuantity());
             }
         }
+    }
+
+    private Long requireRequestTenant(Long requestedTenantId) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null || (requestedTenantId != null && !tenantId.equals(requestedTenantId))) {
+            throw new ResourceNotFoundException("Đơn hàng không tồn tại trong tenant hiện tại");
+        }
+        return tenantId;
     }
 
     private void recordWalletLedger(Order order) {

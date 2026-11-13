@@ -18,7 +18,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Collections;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -35,6 +34,9 @@ class UserServiceImplTest {
 
     @Mock
     private StringRedisTemplate stringRedisTemplate;
+
+    @Mock
+    private org.springframework.data.redis.core.ValueOperations<String, String> values;
 
     @Mock
     private EntityManager entityManager;
@@ -62,6 +64,7 @@ class UserServiceImplTest {
                 .build();
         target.setId(2L);
         target.setTenantId(100L);
+        lenient().when(stringRedisTemplate.opsForValue()).thenReturn(values);
     }
 
     @Test
@@ -104,18 +107,18 @@ class UserServiceImplTest {
         UpdateUserStatusRequest statusReq = new UpdateUserStatusRequest();
         statusReq.setStatus(User.UserStatus.DISABLED.name());
         when(userRepository.findById(caller.getId())).thenReturn(Optional.of(caller));
-        when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
+        when(userRepository.findByIdForUpdate(target.getId())).thenReturn(Optional.of(target));
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
-        // Mock Redis keys
-        Set<String> keys = Collections.singleton("auth:user_refresh:" + target.getId() + ":someToken");
-        when(stringRedisTemplate.keys(anyString())).thenReturn(keys);
-        when(stringRedisTemplate.delete(anyCollection())).thenReturn(1L);
+        when(values.get("auth:user_refresh:2")).thenReturn("someToken");
 
         var resp = userService.updateUserStatus(caller.getId(), caller.getRole().name(), target.getId(), statusReq);
         assertEquals(User.UserStatus.DISABLED.name(), resp.getStatus());
+        assertEquals(1L, target.getTokenVersion());
+        verify(values).set("auth:user_access:2", "DISABLED:1");
         // Verify revocation
-        verify(stringRedisTemplate).keys(eq(AuthServiceImpl.REDIS_PREFIX_USER_REFRESH + target.getId() + "*"));
-        verify(stringRedisTemplate).delete(eq(keys));
+        verify(stringRedisTemplate).delete("auth:refresh_token:someToken");
+        verify(stringRedisTemplate).delete("auth:user_refresh:2");
+        verify(stringRedisTemplate, never()).keys(anyString());
     }
 
     @Test
@@ -123,15 +126,16 @@ class UserServiceImplTest {
         AssignRolesRequest req = new AssignRolesRequest();
         req.setRoles(Collections.singletonList(User.UserRole.MANAGER.name()));
         when(userRepository.findById(caller.getId())).thenReturn(Optional.of(caller));
-        when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
+        when(userRepository.findByIdForUpdate(target.getId())).thenReturn(Optional.of(target));
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
-        Set<String> keys = Collections.singleton("auth:user_refresh:" + target.getId() + ":token");
-        when(stringRedisTemplate.keys(anyString())).thenReturn(keys);
-        when(stringRedisTemplate.delete(anyCollection())).thenReturn(1L);
+        when(values.get("auth:user_refresh:2")).thenReturn("token");
         var resp = userService.assignRoles(caller.getId(), caller.getRole().name(), target.getId(), req);
         assertEquals(User.UserRole.MANAGER.name(), resp.getRole());
-        verify(stringRedisTemplate).keys(eq(AuthServiceImpl.REDIS_PREFIX_USER_REFRESH + target.getId() + "*"));
-        verify(stringRedisTemplate).delete(eq(keys));
+        assertEquals(1L, target.getTokenVersion());
+        verify(values).set("auth:user_access:2", "ACTIVE:1");
+        verify(stringRedisTemplate).delete("auth:refresh_token:token");
+        verify(stringRedisTemplate).delete("auth:user_refresh:2");
+        verify(stringRedisTemplate, never()).keys(anyString());
     }
 
     @Test
@@ -139,7 +143,7 @@ class UserServiceImplTest {
         AssignRolesRequest req = new AssignRolesRequest();
         req.setRoles(Collections.singletonList("INVALID_ROLE"));
         when(userRepository.findById(caller.getId())).thenReturn(Optional.of(caller));
-        when(userRepository.findById(target.getId())).thenReturn(Optional.of(target));
+        when(userRepository.findByIdForUpdate(target.getId())).thenReturn(Optional.of(target));
         assertThrows(BusinessException.class, () ->
                 userService.assignRoles(caller.getId(), caller.getRole().name(), target.getId(), req));
     }
@@ -151,6 +155,7 @@ class UserServiceImplTest {
         req.setRoles(Collections.singletonList(User.UserRole.CUSTOMER.name()));
         // caller and target same
         when(userRepository.findById(caller.getId())).thenReturn(Optional.of(caller));
+        when(userRepository.findByIdForUpdate(caller.getId())).thenReturn(Optional.of(caller));
         assertThrows(BusinessException.class, () ->
                 userService.assignRoles(caller.getId(), caller.getRole().name(), caller.getId(), req));
     }
@@ -169,7 +174,7 @@ class UserServiceImplTest {
         AssignRolesRequest req = new AssignRolesRequest();
         req.setRoles(Collections.singletonList(User.UserRole.MANAGER.name()));
         when(userRepository.findById(caller.getId())).thenReturn(Optional.of(caller));
-        when(userRepository.findById(otherTarget.getId())).thenReturn(Optional.of(otherTarget));
+        when(userRepository.findByIdForUpdate(otherTarget.getId())).thenReturn(Optional.of(otherTarget));
         assertThrows(BusinessException.class, () ->
                 userService.assignRoles(caller.getId(), caller.getRole().name(), otherTarget.getId(), req));
     }

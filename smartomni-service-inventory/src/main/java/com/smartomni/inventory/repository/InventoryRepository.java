@@ -10,5 +10,5 @@ import java.util.Optional;
 @org.springframework.transaction.annotation.Transactional(readOnly = true)
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     Page<Inventory> findByTenantId(Long tenantId, Pageable pageable);
-    Optional<Inventory> findBySkuId(Long skuId);
+    Optional<Inventory> findByTenantIdAndSkuId(Long tenantId, Long skuId);
 }

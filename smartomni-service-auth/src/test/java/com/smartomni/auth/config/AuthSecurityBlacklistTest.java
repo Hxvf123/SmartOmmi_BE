@@ -56,6 +56,9 @@ class AuthSecurityBlacklistTest {
     private StringRedisTemplate stringRedisTemplate;
 
     @MockBean
+    private org.springframework.data.redis.core.ValueOperations<String, String> values;
+
+    @MockBean
     private org.springframework.data.jpa.mapping.JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @Test
@@ -78,6 +81,9 @@ class AuthSecurityBlacklistTest {
         when(jwtTokenProvider.getUserId(token)).thenReturn(1L);
         when(jwtTokenProvider.getRole(token)).thenReturn("ADMIN");
         when(jwtTokenProvider.getTenantId(token)).thenReturn(100L);
+        when(jwtTokenProvider.getTokenVersion(token)).thenReturn(0L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(values);
+        when(values.get("auth:user_access:1")).thenReturn("ACTIVE:0");
 
         mockMvc.perform(get("/api/v1/users/profile")
                         .header("Authorization", "Bearer " + token))

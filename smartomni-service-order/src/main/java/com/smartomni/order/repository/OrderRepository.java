@@ -10,6 +10,8 @@ import java.util.Optional;
 @org.springframework.transaction.annotation.Transactional(readOnly = true)
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
+    Optional<Order> findByIdAndTenantId(Long id, Long tenantId);
+
     // FR-025: chong trung lap (idempotency) - dung de kiem tra truoc khi tao moi
     Optional<Order> findByTenantIdAndPlatformAndPlatformOrderId(
             Long tenantId, Order.Platform platform, String platformOrderId);

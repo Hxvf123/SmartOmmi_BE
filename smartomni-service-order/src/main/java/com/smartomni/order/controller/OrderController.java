@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 /**
  * UC-10: Theo doi & xu ly don hang (Manager)
@@ -26,6 +27,7 @@ public class OrderController {
     }
 
     @PatchMapping("/{orderId}/status")
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN','TENANT_ADMIN')")
     public ApiResponse<Order> updateStatus(@PathVariable Long orderId, @RequestParam Order.OrderStatus status) {
         return ApiResponse.success(orderService.updateStatus(orderId, status));
     }

@@ -31,10 +31,15 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(Long userId, String role, Long tenantId, String subdomain) {
+        return generateToken(userId, role, tenantId, subdomain, 0L);
+    }
+
+    public String generateToken(Long userId, String role, Long tenantId, String subdomain, Long tokenVersion) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role);
+        claims.put("tokenVersion", tokenVersion);
         if (userId != null) {
             claims.put("user_id", userId);
         }
@@ -83,6 +88,11 @@ public class JwtTokenProvider {
             return Long.valueOf(userId.toString());
         }
         return Long.valueOf(claims.getSubject());
+    }
+
+    public Long getTokenVersion(String token) {
+        Object version = parseClaims(token).get("tokenVersion");
+        return version == null ? null : Long.valueOf(version.toString());
     }
 
     public String getRole(String token) {

@@ -1,6 +1,8 @@
 package com.smartomni.order.service;
 
+import com.smartomni.common.exception.BusinessException;
 import com.smartomni.order.entity.Order;
+import org.springframework.http.HttpStatus;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -35,8 +37,8 @@ public final class TiktokOrderStatusMapper {
             case "CANCELLED", "CANCELED", "140" -> Order.OrderStatus.CANCELLED;
             case "IN_CANCEL", "ON_HOLD" -> Order.OrderStatus.ON_HOLD;
             default -> {
-                log.warn("Trạng thái TikTok không xác định '{}', fallback về PENDING", tiktokStatus);
-                yield Order.OrderStatus.PENDING;
+                throw new BusinessException("Trạng thái sàn không xác định: " + tiktokStatus,
+                        HttpStatus.BAD_REQUEST, "UNKNOWN_MARKETPLACE_ORDER_STATUS");
             }
         };
     }
@@ -60,8 +62,8 @@ public final class TiktokOrderStatusMapper {
         return switch (current) {
             case PENDING -> next == Order.OrderStatus.TO_SHIP || next == Order.OrderStatus.CANCELLED || next == Order.OrderStatus.ON_HOLD;
             case TO_SHIP -> next == Order.OrderStatus.SHIPPED || next == Order.OrderStatus.CANCELLED || next == Order.OrderStatus.ON_HOLD;
-            case ON_HOLD -> next == Order.OrderStatus.TO_SHIP || next == Order.OrderStatus.CANCELLED;
-            case SHIPPED -> next == Order.OrderStatus.DELIVERING || next == Order.OrderStatus.COMPLETED || next == Order.OrderStatus.RETURNED;
+            case ON_HOLD -> next == Order.OrderStatus.TO_SHIP || next == Order.OrderStatus.CANCELLED || next == Order.OrderStatus.RETURNED;
+            case SHIPPED -> next == Order.OrderStatus.DELIVERING || next == Order.OrderStatus.COMPLETED || next == Order.OrderStatus.RETURNED || next == Order.OrderStatus.ON_HOLD;
             case DELIVERING -> next == Order.OrderStatus.COMPLETED || next == Order.OrderStatus.RETURNED;
             case COMPLETED -> next == Order.OrderStatus.RETURNED;
             default -> false;

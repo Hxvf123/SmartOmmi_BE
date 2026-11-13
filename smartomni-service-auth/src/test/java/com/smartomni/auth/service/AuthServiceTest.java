@@ -72,6 +72,10 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(stringRedisTemplate.execute(
+                org.mockito.ArgumentMatchers.<org.springframework.data.redis.core.script.RedisScript<Long>>any(),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(1L);
 
         authService = new AuthServiceImpl(
                 userRepository,
@@ -113,7 +117,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("admin@smartshop.vn")).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("Password123@", sampleUser.getPasswordHash())).thenReturn(true);
         when(tenantLookupRepository.findBySubdomain("smartshop")).thenReturn(Optional.of(sampleTenant));
-        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop")).thenReturn("mocked.jwt.token");
+        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop", 0L)).thenReturn("mocked.jwt.token");
 
         AuthResponse response = authService.login(request);
 
@@ -146,7 +150,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("admin@smartshop.vn")).thenReturn(Optional.of(sampleUser));
         when(passwordEncoder.matches("Password123@", sampleUser.getPasswordHash())).thenReturn(true);
         when(tenantLookupRepository.findById(100L)).thenReturn(Optional.of(sampleTenant));
-        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop")).thenReturn("mocked.jwt.token");
+        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop", 0L)).thenReturn("mocked.jwt.token");
 
         AuthResponse response = authService.login(request);
 
@@ -304,7 +308,7 @@ class AuthServiceTest {
         when(valueOperations.get(AuthServiceImpl.REDIS_PREFIX_REFRESH + "valid-refresh-token")).thenReturn("1");
         when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
         when(tenantLookupRepository.findById(100L)).thenReturn(Optional.of(sampleTenant));
-        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop")).thenReturn("new.jwt.access.token");
+        when(jwtTokenProvider.generateToken(1L, "ADMIN", 100L, "smartshop", 0L)).thenReturn("new.jwt.access.token");
 
         AuthResponse response = authService.refreshToken(request);
 
@@ -388,7 +392,7 @@ class AuthServiceTest {
         savedUser.setId(2L);
 
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtTokenProvider.generateToken(2L, "CUSTOMER", null, null)).thenReturn("jwt.token.newuser");
+        when(jwtTokenProvider.generateToken(2L, "CUSTOMER", null, null, 0L)).thenReturn("jwt.token.newuser");
 
         AuthResponse response = authService.register(request);
 
