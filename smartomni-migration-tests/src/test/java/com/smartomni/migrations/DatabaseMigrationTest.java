@@ -170,7 +170,7 @@ class DatabaseMigrationTest {
             for (var future : futures) {
                 applied += future.get(60, java.util.concurrent.TimeUnit.SECONDS);
             }
-            assertEquals(17, applied);
+            assertEquals(18, applied);
         } finally {
             start.countDown();
             executor.shutdownNow();
@@ -185,7 +185,7 @@ class DatabaseMigrationTest {
                     "SELECT count(*) FROM pg_type WHERE typnamespace='public'::regnamespace AND typtype='e'"));
             assertTrue(count(admin,
                     "SELECT count(*) FROM pg_constraint WHERE connamespace='public'::regnamespace AND contype='f'") > 50);
-            assertEquals(17, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+            assertEquals(18, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
             assertEquals(1, count(admin, "SELECT count(*) FROM information_schema.columns WHERE table_name='users' AND column_name='token_version' AND is_nullable='NO'"));
             execute(admin, Files.readString(Path.of("..", "scripts", "db", "verify-schema.sql")));
         }
@@ -533,7 +533,7 @@ class DatabaseMigrationTest {
         assertThrows(FlywayException.class, invalid::migrate);
         try (Connection admin = connect(url, "postgres")) {
             assertEquals(0, count(admin, "SELECT count(*) FROM pg_tables WHERE tablename='should_rollback'"));
-            assertEquals(17, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
+            assertEquals(18, count(admin, "SELECT count(*) FROM flyway_schema_history WHERE success"));
         }
     }
 
@@ -557,7 +557,7 @@ class DatabaseMigrationTest {
         Flyway baseline = Flyway.configure().dataSource(url, "smartomni_migrator", TEST_PASSWORD)
                 .defaultSchema("public").baselineVersion("5").load();
         baseline.baseline();
-        assertEquals(12, flyway(url).migrate().migrationsExecuted);
+        assertEquals(13, flyway(url).migrate().migrationsExecuted);
         try (var context = boot(url)) {
             assertNotNull(context.getBean(EntityManagerFactory.class));
         }
@@ -607,10 +607,11 @@ class DatabaseMigrationTest {
         String url = newDatabase();
         try (var context = boot(url)) {
             try (Connection admin = connect(url, "postgres")) {
-                execute(admin, "INSERT INTO subscription_plans(name, max_marketplace_connections, max_skus) VALUES ('FREE', 1, 100), ('PRO', 10, 10000)");
+                execute(admin, "INSERT INTO subscription_plans(name, max_marketplace_connections, max_skus) "
+                        + "VALUES ('FREE', 1, 100), ('PRO', 10, 10000) ON CONFLICT (name) DO NOTHING");
                 execute(admin, "INSERT INTO tenants(name, subdomain, plan_id, status) VALUES "
-                        + "('ABC Store', 'abc', 2, 'active'), "
-                        + "('Free Shop', 'free-shop', 1, 'active')");
+                        + "('ABC Store', 'abc', (SELECT id FROM subscription_plans WHERE name = 'PRO'), 'active'), "
+                        + "('Free Shop', 'free-shop', (SELECT id FROM subscription_plans WHERE name = 'FREE'), 'active')");
                 execute(admin, "INSERT INTO products(tenant_id, name) VALUES (1, 'Pro Exclusive'), (2, 'Free Item')");
             }
 
@@ -675,5 +676,30 @@ class DatabaseMigrationTest {
         assertNull(TenantContext.getTenantId());
         assertNull(TenantContext.getSubscriptionPlan());
         assertNull(TenantContext.getCurrentSubdomain());
+    }
+
+    @Test
+    void v18SeedsSubscriptionPlansAndAllowsPublicActiveTenantSelect() throws Exception {
+        String url = newDatabase();
+        try (var context = boot(url)) {
+            try (Connection admin = connect(url, "postgres")) {
+                assertEquals(2, count(admin, "SELECT count(*) FROM subscription_plans WHERE name IN ('FREE', 'PRO')"));
+                assertEquals(1, count(admin,
+                        "SELECT count(*) FROM plan_feature_flags f JOIN subscription_plans p ON p.id = f.plan_id "
+                                + "WHERE p.name = 'FREE' AND f.feature_key = 'ai_features' AND f.enabled = false"));
+                assertEquals(1, count(admin,
+                        "SELECT count(*) FROM plan_feature_flags f JOIN subscription_plans p ON p.id = f.plan_id "
+                                + "WHERE p.name = 'PRO' AND f.feature_key = 'ai_features' AND f.enabled = true"));
+
+                execute(admin, "INSERT INTO tenants(name, subdomain, plan_id, status) VALUES "
+                        + "('Public Active Shop', 'public-active', (SELECT id FROM subscription_plans WHERE name = 'FREE'), 'active'), "
+                        + "('Locked Shop', 'locked-shop', (SELECT id FROM subscription_plans WHERE name = 'FREE'), 'locked')");
+            }
+
+            try (Connection app = connect(url, "smartomni_app")) {
+                assertEquals(1, count(app, "SELECT count(*) FROM tenants WHERE subdomain = 'public-active'"));
+                assertEquals(0, count(app, "SELECT count(*) FROM tenants WHERE subdomain = 'locked-shop'"));
+            }
+        }
     }
 }

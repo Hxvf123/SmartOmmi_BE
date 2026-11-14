@@ -83,7 +83,43 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException("Email đã được sử dụng trong hệ thống", HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS");
         }
 
-        // Luồng 1: Đăng ký Chuẩn cho Customer/General User không gắn Tenant (tenant_id = null)
+        // B2: Phân giải cửa hàng nếu có subdomain (body hoặc Host/TenantContext) hoặc tenantId
+        Long resolvedTenantId = null;
+        String resolvedSubdomain = null;
+        String requestedSubdomain = request.getSubdomain();
+        if ((requestedSubdomain == null || requestedSubdomain.trim().isEmpty()) && TenantContext.getCurrentSubdomain() != null) {
+            requestedSubdomain = TenantContext.getCurrentSubdomain();
+        }
+
+        if (requestedSubdomain != null && !requestedSubdomain.trim().isEmpty()) {
+            String targetSubdomain = requestedSubdomain.trim().toLowerCase(Locale.ROOT);
+            TenantLookup tenant = tenantLookupRepository.findBySubdomain(targetSubdomain)
+                    .orElseThrow(() -> new BusinessException(
+                            "Không tìm thấy cửa hàng với subdomain: " + targetSubdomain,
+                            HttpStatus.NOT_FOUND,
+                            "STORE_NOT_FOUND"));
+            if (tenant.isLocked()) {
+                String reason = tenant.lockedReason() != null ? tenant.lockedReason() : "Vui lòng liên hệ bộ phận hỗ trợ";
+                throw new BusinessException("Tổ chức/Tenant '" + tenant.name() + "' đã bị khóa. Lý do: " + reason,
+                        HttpStatus.FORBIDDEN, "TENANT_LOCKED");
+            }
+            resolvedTenantId = tenant.id();
+            resolvedSubdomain = tenant.subdomain();
+        } else if (request.getTenantId() != null) {
+            TenantLookup tenant = tenantLookupRepository.findById(request.getTenantId())
+                    .orElseThrow(() -> new BusinessException(
+                            "Không tìm thấy cửa hàng với id: " + request.getTenantId(),
+                            HttpStatus.NOT_FOUND,
+                            "STORE_NOT_FOUND"));
+            if (tenant.isLocked()) {
+                String reason = tenant.lockedReason() != null ? tenant.lockedReason() : "Vui lòng liên hệ bộ phận hỗ trợ";
+                throw new BusinessException("Tổ chức/Tenant '" + tenant.name() + "' đã bị khóa. Lý do: " + reason,
+                        HttpStatus.FORBIDDEN, "TENANT_LOCKED");
+            }
+            resolvedTenantId = tenant.id();
+            resolvedSubdomain = tenant.subdomain();
+        }
+
         User user = User.builder()
                 .email(email)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
@@ -94,15 +130,17 @@ public class AuthServiceImpl implements AuthService {
                 .status(User.UserStatus.ACTIVE)
                 .failedLoginAttempts(0)
                 .build();
-        user.setTenantId(null);
+        user.setTenantId(resolvedTenantId);
 
         setRlsContext("app.auth_email", email);
         setRlsContext("app.user_role", "super_admin");
         User savedUser = userRepository.save(user);
-        log.info("Successfully registered new standard user ID: {}, email: {}", savedUser.getId(), savedUser.getEmail());
+        log.info("Successfully registered new user ID: {}, email: {}, tenantId: {}",
+                savedUser.getId(), savedUser.getEmail(), resolvedTenantId);
 
         publishAccessState(savedUser);
-        String accessToken = jwtTokenProvider.generateToken(savedUser.getId(), savedUser.getRole().name(), null, null, savedUser.getTokenVersion());
+        String accessToken = jwtTokenProvider.generateToken(
+                savedUser.getId(), savedUser.getRole().name(), resolvedTenantId, resolvedSubdomain, savedUser.getTokenVersion());
         String refreshToken = storeRefreshTokenInRedis(savedUser.getId());
 
         AuthResponse.UserInfo userInfo = AuthResponse.UserInfo.builder()
@@ -112,8 +150,8 @@ public class AuthServiceImpl implements AuthService {
                 .phone(savedUser.getPhone())
                 .avatar(savedUser.getAvatar())
                 .role(savedUser.getRole().name())
-                .tenantId(null)
-                .subdomain(null)
+                .tenantId(resolvedTenantId)
+                .subdomain(resolvedSubdomain)
                 .build();
 
         return AuthResponse.builder()

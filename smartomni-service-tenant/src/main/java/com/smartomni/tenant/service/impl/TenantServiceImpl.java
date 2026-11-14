@@ -2,6 +2,7 @@ package com.smartomni.tenant.service.impl;
 
 import com.smartomni.common.exception.BusinessException;
 import com.smartomni.common.exception.ResourceNotFoundException;
+import com.smartomni.common.persistence.RlsSession;
 import com.smartomni.common.tenant.TenantContext;
 import com.smartomni.common.tenant.TenantProperties;
 import com.smartomni.tenant.dto.PublicTenantStorefrontResponse;
@@ -18,6 +19,8 @@ import com.smartomni.tenant.repository.SubscriptionPlanRepository;
 import com.smartomni.tenant.repository.TenantRepository;
 import com.smartomni.tenant.repository.UserRepository;
 import com.smartomni.tenant.service.TenantService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -26,6 +29,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -48,6 +52,9 @@ public class TenantServiceImpl implements TenantService {
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
     private final TenantProperties tenantProperties;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Value("${app.domain-pattern:https://{slug}.smartomni.vn}")
     private String domainPattern = "https://{slug}.smartomni.vn";
@@ -117,6 +124,10 @@ public class TenantServiceImpl implements TenantService {
     @Override
     @Transactional
     public TenantProfileResponse onboardTenant(TenantOnboardingRequest request) {
+        // /api/v1/tenants/onboarding nằm trong PublicEndpointPaths (bỏ qua TenantFilter)
+        // nên cần thiết lập tạm thời RLS context super_admin bên trong transaction.
+        setRlsContext("app.user_role", "super_admin");
+
         String rawRole = request.getRoleChoice();
         String roleChoice = (rawRole != null && !rawRole.isBlank()) ? rawRole.trim().toUpperCase() : "TENANT_ADMIN";
         if (roleChoice.startsWith("ROLE_")) {
@@ -196,25 +207,13 @@ public class TenantServiceImpl implements TenantService {
         boolean isPro = "PRO".equals(planTypeStr);
         String normalizedPlanName = isPro ? "PRO" : "FREE";
 
-        // Resolve or create SaaS Subscription Plan
+        // Đọc gói dịch vụ đã được seed sẵn từ DB (V18 migration), không tự ý INSERT vào subscription_plans
         SubscriptionPlan plan = subscriptionPlanRepository.findByName(normalizedPlanName)
                 .or(() -> subscriptionPlanRepository.findByName(isPro ? "Pro" : "Free"))
-                .orElseGet(() -> {
-                    SubscriptionPlan newPlan = new SubscriptionPlan();
-                    newPlan.setName(normalizedPlanName);
-                    if (isPro) {
-                        newPlan.setPrice(new BigDecimal("499000.00"));
-                        newPlan.setMaxMarketplaceConnections(Integer.MAX_VALUE);
-                        newPlan.setMaxSkus(Integer.MAX_VALUE);
-                        newPlan.setStorageLimitMb(10240);
-                    } else {
-                        newPlan.setPrice(BigDecimal.ZERO);
-                        newPlan.setMaxMarketplaceConnections(1);
-                        newPlan.setMaxSkus(100);
-                        newPlan.setStorageLimitMb(1024);
-                    }
-                    return subscriptionPlanRepository.save(newPlan);
-                });
+                .orElseThrow(() -> new BusinessException(
+                        "Gói dịch vụ " + normalizedPlanName + " chưa được khởi tạo trong hệ thống",
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "SUBSCRIPTION_PLAN_NOT_FOUND"));
 
         // Set Plan Feature Flags: AI Features enabled for PRO, disabled for FREE
         featureFlagRepository.findByPlanIdAndFeatureKey(plan.getId(), "ai_features")
@@ -468,12 +467,14 @@ public class TenantServiceImpl implements TenantService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PublicTenantStorefrontResponse getPublicStorefrontProfile(String subdomain) {
         if (subdomain == null || subdomain.trim().isEmpty()) {
             throw new BusinessException("Subdomain không được để trống");
         }
 
         String clean = subdomain.trim().toLowerCase();
+        setRlsContext("app.user_role", "super_admin");
         Tenant tenant = tenantRepository.findBySubdomain(clean)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cửa hàng với subdomain: " + clean));
 
@@ -534,5 +535,11 @@ public class TenantServiceImpl implements TenantService {
             return pattern.replace("{slug}", cleanSlug);
         }
         return "https://" + cleanSlug + ".smartomni.vn";
+    }
+
+    private void setRlsContext(String name, String value) {
+        if (entityManager != null && TransactionSynchronizationManager.isActualTransactionActive()) {
+            RlsSession.set(entityManager, name, value);
+        }
     }
 }

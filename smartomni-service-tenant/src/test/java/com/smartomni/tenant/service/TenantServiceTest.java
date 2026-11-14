@@ -188,6 +188,27 @@ public class TenantServiceTest {
     }
 
     @Test
+    @DisplayName("onboardTenant: Không tự ý INSERT subscription_plans khi gói chưa được seed")
+    void testOnboardTenant_MissingSeededPlan_ThrowsException() {
+        TenantOnboardingRequest request = TenantOnboardingRequest.builder()
+                .companyName("Missing Plan Store")
+                .subdomain("missing-plan-store")
+                .adminEmail("admin@missingplan.vn")
+                .planType("FREE")
+                .build();
+
+        when(tenantRepository.existsBySubdomain("missing-plan-store")).thenReturn(false);
+        when(userRepository.findByEmail("admin@missingplan.vn")).thenReturn(Optional.empty());
+        when(subscriptionPlanRepository.findByName("FREE")).thenReturn(Optional.empty());
+        when(subscriptionPlanRepository.findByName("Free")).thenReturn(Optional.empty());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> tenantService.onboardTenant(request));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getHttpStatus());
+        assertEquals("SUBSCRIPTION_PLAN_NOT_FOUND", ex.getErrorCode());
+        verify(subscriptionPlanRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("onboardTenant: Thành công với gói PRO -> maxShops không giới hạn, maxSkus không giới hạn, AI=true, tạo User Admin")
     void testOnboardTenant_ProPlan() {
         TenantOnboardingRequest request = TenantOnboardingRequest.builder()

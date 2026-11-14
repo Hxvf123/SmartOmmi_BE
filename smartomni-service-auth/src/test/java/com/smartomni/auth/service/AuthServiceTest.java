@@ -407,6 +407,96 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Đăng ký thành công với subdomain cửa hàng -> gán tenantId và subdomain")
+    void testRegister_WithSubdomain_LinksTenant() {
+        com.smartomni.auth.dto.RegisterRequest request = com.smartomni.auth.dto.RegisterRequest.builder()
+                .email("buyer@smartshop.vn")
+                .password("Password123@")
+                .fullName("Buyer One")
+                .subdomain("SmartShop")
+                .build();
+
+        when(userRepository.findByEmail("buyer@smartshop.vn")).thenReturn(Optional.empty());
+        when(tenantLookupRepository.findBySubdomain("smartshop")).thenReturn(Optional.of(sampleTenant));
+        when(passwordEncoder.encode("Password123@")).thenReturn("$2a$10$encodedPassword");
+
+        User savedUser = User.builder()
+                .email("buyer@smartshop.vn")
+                .passwordHash("$2a$10$encodedPassword")
+                .fullName("Buyer One")
+                .role(User.UserRole.CUSTOMER)
+                .status(User.UserStatus.ACTIVE)
+                .build();
+        savedUser.setId(5L);
+        savedUser.setTenantId(100L);
+
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            assertEquals(100L, u.getTenantId());
+            return savedUser;
+        });
+        when(jwtTokenProvider.generateToken(5L, "CUSTOMER", 100L, "smartshop", 0L)).thenReturn("jwt.token.storeuser");
+
+        AuthResponse response = authService.register(request);
+
+        assertNotNull(response);
+        assertEquals("jwt.token.storeuser", response.getAccessToken());
+        assertEquals(100L, response.getUserInfo().getTenantId());
+        assertEquals("smartshop", response.getUserInfo().getSubdomain());
+    }
+
+    @Test
+    @DisplayName("Đăng ký thất bại 404 STORE_NOT_FOUND khi subdomain không tồn tại")
+    void testRegister_WithUnknownSubdomain_ThrowsNotFound() {
+        com.smartomni.auth.dto.RegisterRequest request = com.smartomni.auth.dto.RegisterRequest.builder()
+                .email("buyer2@smartshop.vn")
+                .password("Password123@")
+                .fullName("Buyer Two")
+                .subdomain("missing-store")
+                .build();
+
+        when(userRepository.findByEmail("buyer2@smartshop.vn")).thenReturn(Optional.empty());
+        when(tenantLookupRepository.findBySubdomain("missing-store")).thenReturn(Optional.empty());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> authService.register(request));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getHttpStatus());
+        assertEquals("STORE_NOT_FOUND", ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Đăng ký thành công với tenantId -> gán tenantId và subdomain")
+    void testRegister_WithTenantId_LinksTenant() {
+        com.smartomni.auth.dto.RegisterRequest request = com.smartomni.auth.dto.RegisterRequest.builder()
+                .email("buyer3@smartshop.vn")
+                .password("Password123@")
+                .fullName("Buyer Three")
+                .tenantId(100L)
+                .build();
+
+        when(userRepository.findByEmail("buyer3@smartshop.vn")).thenReturn(Optional.empty());
+        when(tenantLookupRepository.findById(100L)).thenReturn(Optional.of(sampleTenant));
+        when(passwordEncoder.encode("Password123@")).thenReturn("$2a$10$encodedPassword");
+
+        User savedUser = User.builder()
+                .email("buyer3@smartshop.vn")
+                .passwordHash("$2a$10$encodedPassword")
+                .fullName("Buyer Three")
+                .role(User.UserRole.CUSTOMER)
+                .status(User.UserStatus.ACTIVE)
+                .build();
+        savedUser.setId(6L);
+        savedUser.setTenantId(100L);
+
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(jwtTokenProvider.generateToken(6L, "CUSTOMER", 100L, "smartshop", 0L)).thenReturn("jwt.token.tenantid");
+
+        AuthResponse response = authService.register(request);
+
+        assertEquals(100L, response.getUserInfo().getTenantId());
+        assertEquals("smartshop", response.getUserInfo().getSubdomain());
+    }
+
+    @Test
     @DisplayName("Đăng ký thất bại khi email đã tồn tại")
     void testRegister_DuplicateEmail() {
         com.smartomni.auth.dto.RegisterRequest request = com.smartomni.auth.dto.RegisterRequest.builder()

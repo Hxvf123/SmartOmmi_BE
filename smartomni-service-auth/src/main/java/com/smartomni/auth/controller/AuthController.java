@@ -11,9 +11,13 @@ import com.smartomni.auth.service.AuthService;
 import com.smartomni.common.constant.AppConstants;
 import com.smartomni.common.dto.ApiResponse;
 import com.smartomni.common.exception.BusinessException;
+import com.smartomni.common.tenant.SubdomainContextFilter;
 import com.smartomni.common.tenant.TenantContext;
+import com.smartomni.common.tenant.TenantProperties;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,7 +30,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controller cho các API Xác thực, cấp phát/làm mới Token, Đăng xuất, Đăng ký và Quản lý Mật khẩu.
+ * Controller cho các API Xác thực, cấp phát/làm mới Token, Đăng xuất, Đăng ký
+ * và Quản lý Mật khẩu.
  */
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -35,20 +40,46 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @Autowired(required = false)
+    private SubdomainContextFilter subdomainContextFilter;
+
     /**
      * POST /api/v1/auth/register hoặc /api/auth/register
-     * Đăng ký tài khoản người dùng mới (kiểm tra email trùng, hash password, gán role mặc định CUSTOMER).
+     * Đăng ký tài khoản người dùng mới (kiểm tra email trùng, hash password, gán
+     * role mặc định CUSTOMER).
      */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
-        return ApiResponse.success("Đăng ký tài khoản thành công", response);
+    public ApiResponse<AuthResponse> register(@Valid @RequestBody RegisterRequest request,
+                                              HttpServletRequest httpRequest) {
+        String previousSubdomain = TenantContext.getCurrentSubdomain();
+        boolean populatedSubdomain = false;
+        if ((request.getSubdomain() == null || request.getSubdomain().isBlank())
+                && (previousSubdomain == null || previousSubdomain.isBlank())
+                && httpRequest != null) {
+            SubdomainContextFilter resolver = subdomainContextFilter != null
+                    ? subdomainContextFilter
+                    : new SubdomainContextFilter(new TenantProperties());
+            String extracted = resolver.extractSubdomain(httpRequest);
+            if (extracted != null && resolver.isSubdomainAllowed(extracted)) {
+                TenantContext.setCurrentSubdomain(extracted);
+                populatedSubdomain = true;
+            }
+        }
+        try {
+            AuthResponse response = authService.register(request);
+            return ApiResponse.success("Đăng ký tài khoản thành công", response);
+        } finally {
+            if (populatedSubdomain) {
+                TenantContext.setCurrentSubdomain(previousSubdomain);
+            }
+        }
     }
 
     /**
      * POST /api/v1/auth/login hoặc /api/auth/login
-     * Đăng nhập hệ thống, kiểm tra xác thực, multi-tenancy, lưu Refresh Token vào Redis và cấp phát JWT.
+     * Đăng nhập hệ thống, kiểm tra xác thực, multi-tenancy, lưu Refresh Token vào
+     * Redis và cấp phát JWT.
      */
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -68,17 +99,20 @@ public class AuthController {
 
     /**
      * POST /api/v1/auth/logout hoặc /api/auth/logout
-     * Đăng xuất hệ thống: đưa Access Token vào Redis Blacklist và hủy Refresh Token.
+     * Đăng xuất hệ thống: đưa Access Token vào Redis Blacklist và hủy Refresh
+     * Token.
      */
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@RequestHeader(value = AppConstants.HEADER_AUTHORIZATION, required = false) String authHeader) {
+    public ApiResponse<Void> logout(
+            @RequestHeader(value = AppConstants.HEADER_AUTHORIZATION, required = false) String authHeader) {
         authService.logout(authHeader);
         return ApiResponse.success("Đăng xuất thành công", null);
     }
 
     /**
      * POST /api/v1/auth/change-password hoặc /api/auth/change-password
-     * Đổi mật khẩu cho người dùng hiện tại (nhận currentPassword, newPassword, confirmPassword và kiểm tra mật khẩu cũ).
+     * Đổi mật khẩu cho người dùng hiện tại (nhận currentPassword, newPassword,
+     * confirmPassword và kiểm tra mật khẩu cũ).
      */
     @PostMapping("/change-password")
     public ApiResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
@@ -105,7 +139,8 @@ public class AuthController {
     public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         if (request.getConfirmPassword() != null && !request.getConfirmPassword().trim().isEmpty()
                 && !request.getNewPassword().equals(request.getConfirmPassword())) {
-            throw new BusinessException("Mật khẩu xác nhận không khớp với mật khẩu mới", HttpStatus.BAD_REQUEST, "PASSWORD_MISMATCH");
+            throw new BusinessException("Mật khẩu xác nhận không khớp với mật khẩu mới", HttpStatus.BAD_REQUEST,
+                    "PASSWORD_MISMATCH");
         }
         authService.resetPassword(request.getToken(), request.getNewPassword());
         return ApiResponse.success("Đặt lại mật khẩu thành công", null);
@@ -113,7 +148,8 @@ public class AuthController {
 
     /**
      * POST /api/v1/auth/internal/tenants/{tenantId}/evict
-     * Thu hồi toàn bộ phiên đăng nhập của Tenant bị khóa (kích hoạt Tenant Eviction).
+     * Thu hồi toàn bộ phiên đăng nhập của Tenant bị khóa (kích hoạt Tenant
+     * Eviction).
      */
     @PostMapping("/internal/tenants/{tenantId}/evict")
     public ApiResponse<Void> evictTenantSessions(@PathVariable Long tenantId) {
@@ -140,6 +176,7 @@ public class AuthController {
                 }
             }
         }
-        throw new BusinessException("Chưa đăng nhập hoặc phiên làm việc đã hết hạn", HttpStatus.UNAUTHORIZED, "UNAUTHORIZED");
+        throw new BusinessException("Chưa đăng nhập hoặc phiên làm việc đã hết hạn", HttpStatus.UNAUTHORIZED,
+                "UNAUTHORIZED");
     }
 }

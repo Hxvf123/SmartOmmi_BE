@@ -108,6 +108,7 @@ class TiktokCatalogDatabaseTest {
             execute(c, "DELETE FROM marketplace_import_runs");
             execute(c, "DELETE FROM marketplace_warehouses");
             execute(c, "UPDATE tenants SET plan_id = NULL");
+            execute(c, "DELETE FROM plan_feature_flags");
             execute(c, "DELETE FROM subscription_plans");
         }
     }

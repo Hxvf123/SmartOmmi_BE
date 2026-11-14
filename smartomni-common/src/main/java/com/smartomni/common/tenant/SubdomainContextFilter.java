@@ -200,6 +200,7 @@ public class SubdomainContextFilter extends OncePerRequestFilter {
             }
         }
         domains.add("smartomni.vn");
+        domains.add("smartomni.local");
         domains.add("lvh.me");
         domains.add("localhost");
         return domains;

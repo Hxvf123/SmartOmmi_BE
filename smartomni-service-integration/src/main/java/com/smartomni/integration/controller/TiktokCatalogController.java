@@ -19,7 +19,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Admin/Manager/Staff triggers for TikTok catalog sync, import, and push (stock & price updates).
+ * Admin/Manager/Staff triggers for TikTok catalog sync, import, and push (stock
+ * & price updates).
  */
 @Slf4j
 @RestController
@@ -32,14 +33,14 @@ public class TiktokCatalogController {
     private final TiktokCatalogService catalogService;
 
     public TiktokCatalogController(TiktokProductImportService importService,
-                                   TiktokPriceSyncService priceSyncService) {
+            TiktokPriceSyncService priceSyncService) {
         this(importService, priceSyncService, null);
     }
 
     @Autowired
     public TiktokCatalogController(TiktokProductImportService importService,
-                                   TiktokPriceSyncService priceSyncService,
-                                   TiktokCatalogService catalogService) {
+            TiktokPriceSyncService priceSyncService,
+            TiktokCatalogService catalogService) {
         this.importService = importService;
         this.priceSyncService = priceSyncService;
         this.catalogService = catalogService;
@@ -66,7 +67,8 @@ public class TiktokCatalogController {
     }
 
     /**
-     * Pushes stock update to TikTok Shop for a specific product SKU (PUT /api/v1/tiktok/products/stock).
+     * Pushes stock update to TikTok Shop for a specific product SKU (PUT
+     * /api/v1/tiktok/products/stock).
      */
     @PutMapping("/stock")
     public ApiResponse<Map<String, Object>> updateStock(@RequestBody TiktokStockUpdateRequest request) {
@@ -74,7 +76,8 @@ public class TiktokCatalogController {
                 request.getShopId(), request.getProductId(), request.getSkuId(), request.getQuantity());
 
         if (catalogService != null) {
-            catalogService.updateStock(request.getShopId(), request.getProductId(), request.getSkuId(), request.getQuantity());
+            catalogService.updateStock(request.getShopId(), request.getProductId(), request.getSkuId(),
+                    request.getQuantity());
         }
 
         return ApiResponse.success("Stock updated successfully",
@@ -84,7 +87,8 @@ public class TiktokCatalogController {
     }
 
     /**
-     * Pushes price update to TikTok Shop for a specific product SKU (PUT /api/v1/tiktok/products/price).
+     * Pushes price update to TikTok Shop for a specific product SKU (PUT
+     * /api/v1/tiktok/products/price).
      */
     @PutMapping("/price")
     public ApiResponse<Map<String, Object>> updatePrice(@RequestBody TiktokPriceUpdateRequest request) {
