@@ -43,6 +43,12 @@ spring:
 smartomni:
   jwt:
     secret: ${JWT_SECRET}
+  tenant:
+    supported-base-domains:
+      - smartomni.vn
+      - lvh.me
+      - smartomni.local
+      - localhost
   services:
     inventory-url: http://localhost:8084
   polling:

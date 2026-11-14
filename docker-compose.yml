@@ -1,8 +1,12 @@
 x-database-environment: &database-environment
   DB_URL: jdbc:postgresql://postgres:5432/smartomni
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
   DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}
   DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?Set DB_MIGRATION_PASSWORD in .env}
   JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+  SPRING_DATA_REDIS_HOST: redis
+  REDIS_HOST: redis
+  SPRING_RABBITMQ_HOST: rabbitmq
 
 # =====================================================================
 # SMARTOMNI - MONO-REPO: 1 file docker-compose chay TOAN BO he thong
@@ -36,6 +40,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - smartomni-net
 
   redis:
     image: redis:7-alpine
@@ -43,6 +49,8 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    networks:
+      - smartomni-net
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -59,26 +67,46 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - smartomni-net
+
+  dns:
+    image: jpillora/dnsmasq:latest
+    container_name: smartomni-dns
+    restart: unless-stopped
+    volumes:
+      - ./dns/dnsmasq.conf:/etc/dnsmasq.conf:ro
+    cap_add:
+      - NET_ADMIN
+    networks:
+      smartomni-net:
+        ipv4_address: 172.28.0.53
 
   # ---------------------- APPLICATION SERVICES ----------------------
   gateway:
-    image: nginx:stable-alpine
+    image: nginx:alpine
     container_name: smartomni-gateway
-    ports: ["8080:8080"]
+    restart: unless-stopped
+    ports: ["80:80"]
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on: [auth-service, tenant-service, catalog-service, inventory-service, order-service, integration-service, ai-service]
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    dns: [172.28.0.53]
+    depends_on: [dns, auth-service, tenant-service, catalog-service, inventory-service, order-service, integration-service, ai-service]
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/health"]
       interval: 10s
       timeout: 3s
       retries: 5
+    networks:
+      smartomni-net:
+        ipv4_address: 172.28.0.10
 
   jobs-service:
     build:
       context: .
       dockerfile: smartomni-jobs/Dockerfile
     container_name: smartomni-jobs-service
+    dns: [172.28.0.53]
     depends_on:
       order-service:
         condition: service_started
@@ -88,9 +116,14 @@ services:
         condition: service_started
     environment:
       INTERNAL_JOB_TOKEN: ${INTERNAL_JOB_TOKEN:?Set INTERNAL_JOB_TOKEN in .env}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartomni
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
       ORDER_JOB_URL: http://order-service:8085/internal/jobs/poll-orders
       INTEGRATION_JOB_URL: http://integration-service:8086/internal/jobs/sync-prices
       INVENTORY_JOB_URL: http://inventory-service:8084/internal/jobs/publish-outbox
+    networks:
+      - smartomni-net
 
   auth-service:
     build:
@@ -98,11 +131,16 @@ services:
       dockerfile: smartomni-service-auth/Dockerfile
     container_name: smartomni-auth-service
     expose: ["8081"]
+    dns: [172.28.0.53]
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       <<: *database-environment
+    networks:
+      - smartomni-net
 
   tenant-service:
     build:
@@ -110,12 +148,16 @@ services:
       dockerfile: smartomni-service-tenant/Dockerfile
     container_name: smartomni-tenant-service
     expose: ["8082"]
+    dns: [172.28.0.53]
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       <<: *database-environment
-      SPRING_DATA_REDIS_HOST: redis
+    networks:
+      - smartomni-net
 
   catalog-service:
     build:
@@ -123,12 +165,15 @@ services:
       dockerfile: smartomni-service-catalog/Dockerfile
     container_name: smartomni-catalog-service
     expose: ["8083"]
+    dns: [172.28.0.53]
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       <<: *database-environment
       SMARTOMNI_SERVICES_TENANT-URL: http://tenant-service:8082
+    networks:
+      - smartomni-net
 
   inventory-service:
     build:
@@ -136,6 +181,7 @@ services:
       dockerfile: smartomni-service-inventory/Dockerfile
     container_name: smartomni-inventory-service
     expose: ["8084"]
+    dns: [172.28.0.53]
     depends_on:
       postgres:
         condition: service_healthy
@@ -145,6 +191,8 @@ services:
       <<: *database-environment
       SPRING_DATA_REDIS_HOST: redis
       SMARTOMNI_JOBS_TOKEN: ${INTERNAL_JOB_TOKEN:?Set INTERNAL_JOB_TOKEN in .env}
+    networks:
+      - smartomni-net
 
   order-service:
     build:
@@ -152,6 +200,7 @@ services:
       dockerfile: smartomni-service-order/Dockerfile
     container_name: smartomni-order-service
     expose: ["8085"]
+    dns: [172.28.0.53]
     depends_on:
       postgres:
         condition: service_healthy
@@ -163,6 +212,8 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
       SMARTOMNI_SERVICES_INVENTORY-URL: http://inventory-service:8084
       SMARTOMNI_JOBS_TOKEN: ${INTERNAL_JOB_TOKEN:?Set INTERNAL_JOB_TOKEN in .env}
+    networks:
+      - smartomni-net
 
   integration-service:
     build:
@@ -170,6 +221,7 @@ services:
       dockerfile: smartomni-service-integration/Dockerfile
     container_name: smartomni-integration-service
     expose: ["8086"]
+    dns: [172.28.0.53]
     depends_on:
       postgres:
         condition: service_healthy
@@ -186,6 +238,8 @@ services:
       SHOPEE_BASE_URL: ${SHOPEE_BASE_URL:-https://shopee-simulator.onrender.com}
       SHOPEE_AUTHORIZATION_URL: ${SHOPEE_AUTHORIZATION_URL:-https://shopee-simulator.onrender.com/api/v2/shop/auth_partner}
       SHOPEE_REDIRECT_URI: ${SHOPEE_REDIRECT_URI:-http://localhost:5174/merchant/channels/shopee/callback}
+    networks:
+      - smartomni-net
 
   ai-service:
     build:
@@ -193,6 +247,7 @@ services:
       dockerfile: smartomni-service-ai/Dockerfile
     container_name: smartomni-ai-service
     expose: ["8087"]
+    dns: [172.28.0.53]
     depends_on:
       postgres:
         condition: service_healthy
@@ -202,6 +257,16 @@ services:
       <<: *database-environment
       SPRING_DATA_REDIS_HOST: redis
       PYTHON_AI_BASE_URL: ${PYTHON_AI_BASE_URL:-http://host.docker.internal:8000}
+    networks:
+      - smartomni-net
+
+networks:
+  smartomni-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+          ip_range: 172.28.1.0/24
 
 volumes:
   pgdata:

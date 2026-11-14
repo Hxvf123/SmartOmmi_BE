@@ -36,6 +36,12 @@ spring:
 smartomni:
   jwt:
     secret: ${JWT_SECRET}
+  tenant:
+    supported-base-domains:
+      - smartomni.vn
+      - lvh.me
+      - smartomni.local
+      - localhost
   encryption:
     aes-key: ${SMARTOMNI_ENCRYPTION_AES_KEY}
   price-sync:

@@ -43,6 +43,11 @@ smartomni:
     secret: ${JWT_SECRET}
   tenant:
     base-domain: ${BASE_DOMAIN:smartomni.vn}
+    supported-base-domains:
+      - smartomni.vn
+      - lvh.me
+      - smartomni.local
+      - localhost
     reserved-subdomains:
       - admin
       - api
