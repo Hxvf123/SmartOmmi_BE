@@ -50,7 +50,7 @@ class JwtAuthenticationFilterTest {
 
         when(tokenBlacklistValidator.isBlacklisted(token)).thenReturn(true);
 
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplate);
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain, times(1)).doFilter(request, response);
@@ -131,7 +131,7 @@ class JwtAuthenticationFilterTest {
         request.addHeader("Authorization", "Basic dXNlcjpwYXNz");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistValidator, stringRedisTemplate);
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain, times(1)).doFilter(request, response);

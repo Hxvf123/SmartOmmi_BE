@@ -24,14 +24,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final TokenBlacklistValidator tokenBlacklistValidator;
     private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
-        this(jwtTokenProvider, null, null);
-    }
-
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, TokenBlacklistValidator tokenBlacklistValidator) {
-        this(jwtTokenProvider, tokenBlacklistValidator, null);
-    }
-
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
                                    TokenBlacklistValidator tokenBlacklistValidator,
                                    org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate) {

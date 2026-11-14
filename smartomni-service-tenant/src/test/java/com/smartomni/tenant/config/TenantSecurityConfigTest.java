@@ -9,6 +9,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,6 +58,9 @@ class TenantSecurityConfigTest {
     private TokenBlacklistValidator tokenBlacklistValidator;
 
     @MockBean
+    private StringRedisTemplate stringRedisTemplate;
+
+    @MockBean
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @Test
@@ -79,6 +84,28 @@ class TenantSecurityConfigTest {
     void testProtectedEndpointRejectedWithoutToken() throws Exception {
         mockMvc.perform(get("/api/v1/tenants/me"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Endpoint bảo mật /api/v1/tenants/me cho phép truy cập với JWT hợp lệ và Redis ACTIVE:0")
+    @SuppressWarnings("unchecked")
+    void testProtectedEndpointAllowedWithValidTokenAndRedisState() throws Exception {
+        String token = "valid.tenant.token";
+        ValueOperations<String, String> values = org.mockito.Mockito.mock(ValueOperations.class);
+        org.mockito.Mockito.when(tokenBlacklistValidator.isBlacklisted(token)).thenReturn(false);
+        org.mockito.Mockito.when(jwtTokenProvider.validateToken(token)).thenReturn(true);
+        org.mockito.Mockito.when(jwtTokenProvider.getUserId(token)).thenReturn(1L);
+        org.mockito.Mockito.when(jwtTokenProvider.getRole(token)).thenReturn("TENANT_ADMIN");
+        org.mockito.Mockito.when(jwtTokenProvider.getTenantId(token)).thenReturn(10L);
+        org.mockito.Mockito.when(jwtTokenProvider.getSubdomain(token)).thenReturn("abc");
+        org.mockito.Mockito.when(jwtTokenProvider.getTokenVersion(token)).thenReturn(0L);
+        org.mockito.Mockito.when(stringRedisTemplate.opsForValue()).thenReturn(values);
+        org.mockito.Mockito.when(values.get(com.smartomni.common.security.UserAccessState.key(1L))).thenReturn("ACTIVE:0");
+        org.mockito.Mockito.when(stringRedisTemplate.hasKey("auth:tenant_locked:10")).thenReturn(false);
+
+        mockMvc.perform(get("/api/v1/tenants/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().string("me"));
     }
 }
 
